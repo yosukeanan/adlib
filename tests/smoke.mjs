@@ -200,6 +200,97 @@ const main = async () => {
       await page.close();
     }
 
+    // --- comping mode: shell voicings, voice leading, rhythm, piano off ---
+    {
+      const {page, errors} = await newPage(browser, 390, 844);
+      await page.goto(base);
+
+      const shells = await page.evaluate(() => {
+        const {Voicing} = window.__adlibTest, TUN = [40, 45, 50, 55, 59, 64], errs = [];
+        let count = 0;
+        for (const q of ['maj7', '6', 'm7', 'm6', '7', '7alt', 'm7b5', 'dim7']) for (let pc = 0; pc < 12; pc++) for (const t of Voicing.TEMPLATES) {
+          const list = Voicing.shapes(pc, q).filter(sh => sh.tpl === t.id);
+          // m7♭5 on 5-R73 would be R-♭7-♭5 on strings 5/3/2: a five-fret stretch, so it has no shape by design.
+          const expectNone = q === 'm7b5' && t.id === '5-R73';
+          if (!list.length && !expectNone) errs.push(`no shape ${q} pc${pc} ${t.id}`);
+          if (list.length && expectNone) errs.push(`unexpected shape ${q} pc${pc} ${t.id}`);
+          for (const sh of list) {
+            count++;
+            const want = [0, ...Voicing.shellTones(q)].map(i => (pc + i) % 12).sort().join();
+            const got = sh.notes.map(n => n.midi % 12).sort().join();
+            const fr = sh.notes.map(n => n.fret), low = sh.notes.reduce((a, b) => (a.midi < b.midi ? a : b));
+            if (got !== want) errs.push(`${q} pc${pc} ${t.id}: notes ${got} != ${want}`);
+            if (Math.max(...fr) - Math.min(...fr) > 3) errs.push(`${q} pc${pc} ${t.id}: span`);
+            if (fr.some(f => f < 0 || f > 19)) errs.push(`${q} pc${pc} ${t.id}: fret range`);
+            if (low.midi % 12 !== pc) errs.push(`${q} pc${pc} ${t.id}: root not lowest`);
+            if (sh.notes.some(n => TUN[n.string] + n.fret !== n.midi)) errs.push(`${q} pc${pc} ${t.id}: midi`);
+          }
+        }
+        // shapes guitarists know, written low string → high (x = muted)
+        const tab = sh => [0, 1, 2, 3, 4, 5].map(st => { const n = sh.notes.find(m => m.string === st); return n ? n.fret : 'x'; }).join('');
+        const has = (pc, q, t) => Voicing.shapes(pc, q).some(sh => tab(sh) === t);
+        const known = {'Cmaj7 8x99xx': has(0, 'maj7', '8x99xx'), 'Cmaj7 879xxx': has(0, 'maj7', '879xxx'),
+          'Cmaj7 x324xx': has(0, 'maj7', 'x324xx'), 'Cmaj7 x3x45x': has(0, 'maj7', 'x3x45x'),
+          'G7 3x34xx': has(7, '7', '3x34xx'), 'Bm7b5 787xxx': has(11, 'm7b5', '787xxx')};
+        return {count, errs, known};
+      });
+      check('every shell shape has the right notes, root at the bottom, four-fret span', !shells.errs.length,
+        `${shells.count} shapes${shells.errs.length ? ' — ' + shells.errs.slice(0, 3).join('; ') : ''}`);
+      const missingKnown = Object.entries(shells.known).filter(([, v]) => !v).map(([k]) => k);
+      check('standard shell shapes are generated', !missingKnown.length, missingKnown.join(', ') || Object.keys(shells.known).join(' / '));
+
+      const lead = await page.evaluate(() => {
+        const {Voicing, SONGS} = window.__adlibTest, bad = [];
+        let n = 0;
+        for (const song of SONGS) for (let key = 0; key < 12; key++) for (const range of [[5, 9], [0, 4], [0, 15]]) {
+          const chords = Voicing.chorusChords(song, key);
+          const auto = Voicing.lead(chords, 'auto', range), six = Voicing.lead(chords, '6', range), five = Voicing.lead(chords, '5', range);
+          n++;
+          if (auto.path.length !== chords.length || auto.path.some(p => !p)) bad.push(`${song.id} key${key}: missing shape`);
+          if (auto.cost > Math.min(six.cost, five.cost) + 1e-9) bad.push(`${song.id} key${key} ${range}: auto ${auto.cost.toFixed(2)} > fixed`);
+        }
+        return {n, bad};
+      });
+      check('voice leading: "auto" never costs more than a fixed root string', !lead.bad.length, `${lead.n} cases${lead.bad.length ? ' — ' + lead.bad.slice(0, 3).join('; ') : ''}`);
+
+      // UI: switch to comping
+      await page.click('[data-seg="practice"] button[data-i="1"]');
+      const ui = await page.evaluate(() => ({
+        card: !document.getElementById('compCard').hidden, mic: !document.getElementById('micCard').hidden,
+        modeSeg: !document.getElementById('modeSeg').hidden, dots: document.querySelectorAll('#gNotes > g').length,
+        tag: document.getElementById('voicingTag').textContent, hits: document.querySelectorAll('#rhythm i.hit').length}));
+      check('comping shows its card and hides the mic card and display modes', ui.card && !ui.mic && !ui.modeSeg, JSON.stringify(ui));
+      check('fretboard shows exactly the three shell notes', ui.dots === 3, `${ui.dots} dots, ${ui.tag}`);
+      check('Charleston lights two rhythm cells', ui.hits === 2);
+
+      await page.evaluate(() => {
+        const {Synth} = window.__adlibTest, orig = Synth.keys;
+        window.__keys = 0;
+        Synth.keys = function (...a) { window.__keys++; return orig.apply(this, a); };
+      });
+      const keysWhilePlaying = async ms => {
+        await page.evaluate(() => { window.__keys = 0; });
+        await page.click('#playBtn'); await wait(ms); await page.click('#playBtn');
+        return page.evaluate(() => window.__keys);
+      };
+      check('piano is silent in comping mode', (await keysWhilePlaying(3000)) === 0);
+      await page.click('[data-seg="compGuide"] button[data-i="1"]');
+      check('"お手本" plays the shells', (await keysWhilePlaying(3000)) > 0);
+
+      const labels = await page.$$eval('[data-seg="compRhythm"] button', bs => bs.map(b => b.textContent));
+      check('rhythm buttons keep the declared order', labels[0] === 'フォー・ビート' && labels[1] === '2・4拍', labels.join(' / '));
+      await page.click('[data-seg="compRhythm"] button[data-i="0"]');
+      check('four-beat lights four rhythm cells', (await page.$$('#rhythm i.hit')).length === 4);
+
+      await page.click('[data-seg="practice"] button[data-i="0"]');
+      const solo = await page.evaluate(() => ({card: !document.getElementById('compCard').hidden, mic: !document.getElementById('micCard').hidden}));
+      check('back to solo restores the mic card', !solo.card && solo.mic, JSON.stringify(solo));
+      check('piano plays again in solo mode', (await keysWhilePlaying(3000)) > 0);
+
+      check('no page errors (comping)', !errors.length, errors.join(' | '));
+      await page.close();
+    }
+
     // --- offline start through the service worker ---
     {
       const ctx = await browser.newContext({viewport:{width:390, height:844}});

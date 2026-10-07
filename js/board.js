@@ -3,6 +3,7 @@ import {TUNING, STRING_NAMES, CHORDS, interval, classify, ivLabel} from './theor
 import {POSITIONS} from './songs.js';
 import {S} from './state.js';
 import {$} from './util.js';
+import {voicingFor} from './voicing.js';
 
 const Board = {
   g:null,
@@ -45,6 +46,7 @@ const Board = {
   },
   drawNotes(view) {
     const c = view && view.chord;
+    if (c && this.g && S.practice === 'comp') { $('gNotes').innerHTML = this.shellSvg(c, view.next); return; }
     if (!c || !this.g || S.mode === 'hidden') { $('gNotes').innerHTML = ''; return; }
     const nx = view.next, q = CHORDS[c.q], nq = nx && CHORDS[nx.q];
     let s = '';
@@ -64,6 +66,15 @@ const Board = {
       }
     });
     $('gNotes').innerHTML = s;
+  },
+  /** Comping: the current shell as filled dots, the next shell as rings. Notes outside the shown frets are skipped. */
+  shellSvg(c, nx) {
+    const v = voicingFor(c, S), nv = nx && voicingFor(nx, S), {f0, f1, k} = this.g;
+    const shown = n => n.fret >= f0 && n.fret <= f1;
+    let s = '';
+    if (nv) for (const n of nv.notes.filter(shown)) s += `<circle class="d-next" cx="${this.x(n.fret)}" cy="${this.y(n.string)}" r="${12 * k}"/>`;
+    if (v) for (const n of v.notes.filter(shown)) s += this.dot(this.x(n.fret), this.y(n.string), n.iv === 0 ? 'd-root' : 'd-ct', n.label, 10.5);
+    return s;
   },
   flash(midi) {
     if (!this.g) return;

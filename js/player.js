@@ -1,7 +1,8 @@
 // Look-ahead scheduler that drives the band and the practice load settings.
-import {S, update, song, barRange, isLastBar, chordAt, chordAfter} from './state.js';
+import {S, update, song, barRange, isLastBar, nextBar, chordAt, chordAfter} from './state.js';
 import {Synth} from './synth.js';
-import {Band} from './band.js';
+import {Band, COMP_RHYTHMS} from './band.js';
+import {voicingFor} from './voicing.js';
 import {Stats} from './stats.js';
 import {UI} from './ui.js';
 import {Loop, Wake} from './frame.js';
@@ -55,10 +56,21 @@ const Player = {
     this.fx = {muted: d.left > 0, hatOnly: S.dropout === '24'};
     if (d.left > 0) d.left--;
     if (d.cool > 0) d.cool--;
-    if (S.mix.comp && !this.fx.muted && !this.fx.hatOnly) {
-      for (const e of Band.compHits(song().bars[bar].length > 1)) {
-        const b = e >> 1, tt = t + b * spb + (e & 1) * spb * S.swing / 100;
-        Synth.keys(tt, Band.voicing(chordAt(bar, b)), spb * (0.45 + Math.random() * 0.55));
+    const swung = e => t + (e >> 1) * spb + (e & 1) * spb * S.swing / 100;
+    if (S.practice === 'solo') {
+      if (S.mix.comp && !this.fx.muted && !this.fx.hatOnly) {
+        for (const e of Band.compHits(song().bars[bar].length > 1))
+          Synth.keys(swung(e), Band.voicing(chordAt(bar, e >> 1)), spb * (0.45 + Math.random() * 0.55));
+      }
+    } else if (S.compGuide && !this.fx.muted) {
+      // Comping mode: the piano stays out; optionally play the shells in the chosen rhythm as an example.
+      const r = COMP_RHYTHMS[S.compRhythm];
+      for (const e of r.hits) {
+        const ch = r.ant && e === 7
+          ? chordAt(nextBar(bar), 0, isLastBar(bar) ? this.pendingKey : S.keyPc)
+          : chordAt(bar, e >> 1);
+        const v = voicingFor(ch, S);
+        if (v) Synth.keys(swung(e), v.notes.map(n => n.midi), spb * (r.short ? 0.35 : 0.9));
       }
     }
   },

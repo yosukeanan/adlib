@@ -8,6 +8,9 @@ import {Seg, UI} from './ui.js';
 import {Wake} from './frame.js';
 import {Synth} from './synth.js';
 import {MicSetup} from './setup.js';
+import * as Voicing from './voicing.js';
+import {COMP_RHYTHMS} from './band.js';
+import {SONGS} from './songs.js';
 
 const taps = [];
 const ACTIONS = {
@@ -77,7 +80,7 @@ $('micSetup').addEventListener('close', () => MicSetup.onClosed());
 UI.init();
 
 // Test seam: an automated test can pre-define window.__adlibTest to reach the internals.
-if (window.__adlibTest) Object.assign(window.__adlibTest, {S, update, Player, Mic, Calib, LatCalib, Synth, Stats, UI, MicSetup});
+if (window.__adlibTest) Object.assign(window.__adlibTest, {S, update, Player, Mic, Calib, LatCalib, Synth, Stats, UI, MicSetup, Voicing, COMP_RHYTHMS, SONGS});
 
 // Offline support when served over HTTPS (GitHub Pages). Silently skipped elsewhere.
 if ('serviceWorker' in navigator && (location.protocol === 'https:' || location.hostname === 'localhost')) {

@@ -46,6 +46,8 @@
       <div class="intro-btns"><button class="btn ghost" data-action="intro">閉じる</button><button class="btn ghost intro-more" data-action="introMore">詳しく</button></div>
     </div>
 
+    <div class="seg practice-seg" data-seg="practice" role="group" aria-label="練習の種類"></div>
+
     <section class="card stage">
       <div class="stage-meta"><span id="songLabel"></span><span id="chorusLabel"></span></div>
       <div class="chord-row">
@@ -57,15 +59,28 @@
         <div id="status" class="status"></div>
         <span id="stageDet" class="badge" hidden></span>
       </div>
+      <div class="comp-stage" id="compStage" hidden>
+        <span class="voicing-tag" id="voicingTag"></span>
+        <div class="rhythm" id="rhythm" role="img" aria-label="リズムパターン"></div>
+      </div>
     </section>
 
     <section class="card board-card">
-      <div class="seg" data-seg="mode" role="group" aria-label="指板の表示"></div>
+      <div class="seg" data-seg="mode" role="group" aria-label="指板の表示" id="modeSeg"></div>
       <div class="board-wrap" id="boardWrap">
         <svg id="board" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="指板"><g id="gBoard"></g><g id="gNotes"></g><g id="gDet"></g></svg>
       </div>
       <div class="chips" data-seg="pos" role="group" aria-label="ポジション"></div>
       <div class="legend" id="legend"></div>
+    </section>
+
+    <section class="card group" id="compCard" hidden>
+      <h2>コンピング</h2>
+      <p>ピアノは止まり、ベースとドラムだけになります。指板のシェル（3音）を、リズムに合わせて弾きます。</p>
+      <div class="field"><div class="lab"><span>リズム</span></div><div class="chips" data-seg="compRhythm" role="group" aria-label="リズム"></div><div class="hint" id="rhythmHint"></div></div>
+      <div class="field"><div class="lab"><span>ボイシング</span></div><div class="seg" data-seg="compVoicing" role="group" aria-label="ボイシング"></div><div class="hint">「自動」は、手の移動が少なくなるように6弦ルートと5弦ルートを選びます。</div></div>
+      <div class="field"><div class="lab"><span>お手本</span></div><div class="seg" data-seg="compGuide" role="group" aria-label="お手本"></div><div class="hint">オンにすると、シェルをリズムどおりに鳴らします。形とリズムを耳で確かめてから、オフにして自分で弾きます。</div></div>
+      <p class="hint">マイクでの和音の判定は準備中です。</p>
     </section>
 
     <section class="card">
