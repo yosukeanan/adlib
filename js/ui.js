@@ -7,6 +7,8 @@ import {Player} from './player.js';
 import {Stats} from './stats.js';
 import {Mic, judgeOffset} from './mic.js';
 import {Board} from './board.js';
+import {COMP_RHYTHMS} from './band.js';
+import {voicingFor} from './voicing.js';
 
 const SEGS = {
   mode:     {key:'mode',     opts:() => [['chord','コード音'],['guide','ガイド'],['scale','スケール'],['hidden','かくす']]},
@@ -18,7 +20,11 @@ const SEGS = {
   rotEvery: {key:'rotEvery', opts:() => [[1,'毎回'],[2,'2回ごと'],[4,'4回ごと']]},
   dropout:  {key:'dropout',  opts:() => [['off','オフ'],['24','2・4拍だけ'],['random','ときどき無音']]},
   phrase:   {key:'phrase',   opts:() => [['off','オフ'],['1-1','1／1'],['2-2','2／2'],['4-4','4／4']]},
-  boardSize:{key:'boardSize',opts:() => [['std','標準'],['large','大きく']]}
+  boardSize:{key:'boardSize',opts:() => [['std','標準'],['large','大きく']]},
+  practice: {key:'practice', opts:() => [['solo','ソロ'],['comp','コンピング']]},
+  compRhythm:{key:'compRhythm',opts:() => Object.entries(COMP_RHYTHMS).map(([k, r]) => [k, r.label])},
+  compVoicing:{key:'compVoicing',opts:() => [['auto','自動'],['6','6弦ルート'],['5','5弦ルート']]},
+  compGuide:{key:'compGuide', opts:() => [[false,'オフ'],[true,'鳴らす']]}
 };
 const Seg = {
   els: name => document.querySelectorAll(`[data-seg="${name}"]`),
@@ -43,7 +49,8 @@ const LEGENDS = {
   chord: '<span><i style="background:var(--root)"></i>ルート</span><span><i style="background:var(--ct)"></i>3rd・5th・7th</span><span>強拍でここに着地</span>',
   guide: '<span><i style="background:var(--ct)"></i>今の3rd・7th</span><span><i class="ring"></i>次のコードの3rd・7th</span><span>薄い点はR・5th</span>',
   scale: '<span><i style="background:var(--ct)"></i>コードトーン</span><span><i style="background:var(--ten)"></i>テンション</span><span><i style="background:var(--avoid)"></i>アヴォイド</span>',
-  hidden:'<span>指板を隠して、耳とコード名だけで弾きます。マイク判定は続きます。</span>'
+  hidden:'<span>指板を隠して、耳とコード名だけで弾きます。マイク判定は続きます。</span>',
+  comp:  '<span><i style="background:var(--root)"></i>ルート</span><span><i style="background:var(--ct)"></i>3rd・7th</span><span><i class="ring"></i>次のシェル</span>'
 };
 
 const UI = {
@@ -52,7 +59,7 @@ const UI = {
   init() {
     Object.keys(SEGS).forEach(n => Seg.build(n));
     this.renderSongs(); this.renderSongLabel(); this.renderSheet(); this.renderTempo();
-    this.renderSwing(); this.renderMix(); this.renderGate(); this.renderDeps(); this.renderLegend();
+    this.renderSwing(); this.renderMix(); this.renderGate(); this.renderDeps(); this.renderPractice();
     this.micState(); this.renderLatency(); this.renderMetrics(); this.onPlayState();
     Board.layout(); this.preview();
     if (!storage.get('jit-intro-done', false)) $('intro').hidden = false;
@@ -70,6 +77,8 @@ const UI = {
     if (has('gate')) this.renderGate();
     if (has('rampStep') || has('rot')) this.renderDeps();
     if (has('mode')) { this.renderLegend(); Board.drawNotes(this.view); }
+    if (has('practice') || has('compRhythm')) this.renderPractice();
+    else if (has('compVoicing')) { Board.drawNotes(this.view); this.renderVoicingTag(); }
     if (has('pos') || has('boardSize')) { Board.layout(); Board.drawNotes(this.view); }
     if (has('latency')) this.renderLatency();
     if (has('audioOut')) this.micState();
@@ -89,6 +98,7 @@ const UI = {
     $('curChord').textContent = chord ? chordName(chord) : '—';
     $('nextChord').textContent = next ? chordName(next) : '—';
     Board.drawNotes(this.view);
+    this.renderVoicingTag();
   },
   preview() {
     const ch = chordAt(barRange()[0], 0);
@@ -103,7 +113,7 @@ const UI = {
     $('playBtn').innerHTML = p ? ICON_STOP : ICON_PLAY;
     $('playBtn').setAttribute('aria-label', p ? '停止' : '再生');
     if (p) return;
-    this.setBeats(-1); this.markBar(-1); $('nextBox').classList.remove('soon');
+    this.setBeats(-1); this.markBar(-1); this.markRhythm(-1); $('nextBox').classList.remove('soon');
     $('chorusLabel').textContent = S.bpm + ' BPM';
     this.preview(); this.renderLog();
   },
@@ -111,6 +121,7 @@ const UI = {
     if (e.id !== this.view.id) this.setView(e.chord, e.next, e.id);
     this.setBeats(e.count ? e.count - 1 : e.beat);
     this.markBar(e.count ? -1 : e.bar);
+    this.markRhythm(e.count ? -1 : e.beat);
     $('nextBox').classList.toggle('soon', !e.count && e.beat === e.chord.start + e.chord.beats - 1);
     $('chorusLabel').textContent = e.count ? `${e.bpm} BPM` : `${e.chorus}コーラス目・${e.bpm} BPM`;
     this.status(e);
@@ -168,7 +179,32 @@ const UI = {
   renderMix() { document.querySelectorAll('[data-part]').forEach(b => b.setAttribute('aria-pressed', String(!!S.mix[b.dataset.part]))); },
   renderGate() { $('gateRange').value = S.gate; $('gateLbl').textContent = S.gate; },
   renderDeps() { $('fRampMax').classList.toggle('off', S.rampStep === 0); $('fRotEvery').classList.toggle('off', S.rot === 'off'); },
-  renderLegend() { $('legend').innerHTML = LEGENDS[S.mode]; },
+  renderLegend() { $('legend').innerHTML = LEGENDS[S.practice === 'comp' ? 'comp' : S.mode]; },
+
+  /* ----- comping ----- */
+  renderPractice() {
+    const comp = S.practice === 'comp';
+    $('compStage').hidden = !comp; $('compCard').hidden = !comp;
+    $('micCard').hidden = comp; $('modeSeg').hidden = comp;
+    if (comp) { $('stageDet').hidden = true; if (Mic.on) Mic.stop(); }   // single-note judging does not fit chords
+    this.renderLegend(); this.renderRhythm(); this.renderVoicingTag();
+    Board.drawNotes(this.view);
+  },
+  renderRhythm() {
+    const r = COMP_RHYTHMS[S.compRhythm], names = ['1', '&', '2', '&', '3', '&', '4', '&'];
+    $('rhythm').innerHTML = names.map((n, i) =>
+      `<i class="${r.hits.includes(i) ? 'hit' : ''}${r.ant && i === 7 ? ' ant' : ''}">${n}</i>`).join('');
+    $('rhythm').setAttribute('aria-label', `リズム：${r.label}`);
+    $('rhythmHint').textContent = r.hint;
+  },
+  /** Highlight the two eighths of the sounding beat (-1 clears). */
+  markRhythm(beat) {
+    document.querySelectorAll('#rhythm i').forEach((el, i) => el.classList.toggle('cur', beat >= 0 && i >> 1 === beat));
+  },
+  renderVoicingTag() {
+    const v = S.practice === 'comp' && voicingFor(this.view.chord, S);
+    $('voicingTag').textContent = v ? v.name : '';
+  },
   calibMsg(t) { document.querySelectorAll('[data-calib-msg]').forEach(el => { el.textContent = t; }); },
   renderLatency() {
     const ms = Math.round(judgeOffset() * 1000);

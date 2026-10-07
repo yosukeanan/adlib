@@ -2,6 +2,7 @@
 import {interval} from './theory.js';
 import {SONGS, POSITIONS} from './songs.js';
 import {storage, clamp} from './util.js';
+import {COMP_RHYTHMS} from './band.js';
 import {Player} from './player.js';
 import {UI} from './ui.js';
 
@@ -11,11 +12,16 @@ const DEFAULTS = {prog:'251', keyPc:0, bpm:120, swing:62, mode:'guide', pos:'5-9
   boardSize:'std',      // fretboard size: 'std' | 'large'
   audioOut:null,        // 'ear' | 'speaker', answered in the mic setup guide
   latency:null,         // measured play-to-detect offset in seconds; null = estimate
-  micReady:false};      // mic setup guide finished (or skipped) once
+  micReady:false,       // mic setup guide finished (or skipped) once
+  practice:'solo',      // 'solo' | 'comp'
+  compVoicing:'auto',   // shell root string: 'auto' (voice-led) | '6' | '5'
+  compRhythm:'charleston',
+  compGuide:false};     // play the shells in the rhythm as an example
 const S = Object.assign({}, DEFAULTS, storage.get('jit-settings', {}));
 S.mix = Object.assign({}, DEFAULTS.mix, S.mix);
 if (!SONGS.some(s => s.id === S.prog)) S.prog = DEFAULTS.prog;
 if (!POSITIONS[S.pos]) S.pos = DEFAULTS.pos;
+if (!COMP_RHYTHMS[S.compRhythm]) S.compRhythm = DEFAULTS.compRhythm;
 
 /** Apply a settings patch, persist it and re-render what changed. */
 function update(patch) {
@@ -46,7 +52,7 @@ function chordAt(bar, beat, keyPc = S.keyPc) {
   const shift = interval(keyPc, s.keyPc);
   const chords = s.bars[bar] || s.bars[0];
   const c = chords.find(c => beat < c.start + c.beats) || chords[chords.length - 1];
-  return {pc: (c.pc + shift) % 12, q: c.q, beats: c.beats, start: c.start, bar};
+  return {pc: (c.pc + shift) % 12, q: c.q, beats: c.beats, start: c.start, bar, key: keyPc};
 }
 /** The chord that follows `ch`; `keyAfterWrap` is used when the chorus wraps (key rotation). */
 function chordAfter(ch, keyAfterWrap = S.keyPc) {

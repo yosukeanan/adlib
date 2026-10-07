@@ -1,6 +1,18 @@
 // Band arranger: walking bass and comping.
 import {CHORDS} from './theory.js';
 
+/**
+ * Comping rhythms for the guitarist, as swung-eighth indices (0..7) within a bar, like Band.compHits().
+ * ant: the hit on the "and" of 4 already plays the next bar's chord (anticipation).
+ */
+const COMP_RHYTHMS = {
+  four:       {label:'フォー・ビート', hits:[0, 2, 4, 6], short:true, hint:'4分音符で毎拍。短く切って、ベースと一緒に拍を刻みます。'},
+  two4:       {label:'2・4拍',        hits:[2, 6],       short:true, hint:'2拍目と4拍目だけ。スネアの位置です。'},
+  charleston: {label:'チャールストン', hits:[0, 3],                   hint:'1拍目と2拍目の裏。コンピングの基本形です。'},
+  reverse:    {label:'逆チャールストン', hits:[1, 4],                 hint:'1拍目の裏と3拍目。頭を抜いて弾きます。'},
+  ant:        {label:'先取り',         hits:[3, 7], ant:true,          hint:'2拍目の裏と、4拍目の裏で次のコードを先に弾きます。'}
+};
+
 const Band = {
   prevBass:40, prevAvg:60,
   reset() { this.prevBass = 40; this.prevAvg = 60; },
@@ -40,4 +52,4 @@ const Band = {
   }
 };
 
-export {Band};
+export {COMP_RHYTHMS, Band};
