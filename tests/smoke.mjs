@@ -18,13 +18,21 @@ async function loadPlaywright() {
 
 const TYPES = {'.html':'text/html', '.js':'text/javascript', '.css':'text/css', '.json':'application/json',
   '.webmanifest':'application/manifest+json', '.png':'image/png'};
+// Files the test swaps in to simulate publishing a new version (path → content).
+const OVERRIDES = new Map();
 function serve() {
   const srv = http.createServer((req, res) => {
     let p = decodeURIComponent(new URL(req.url, 'http://x').pathname);
     if (p.endsWith('/')) p += 'index.html';
+    // GitHub Pages lets browsers reuse files for 10 minutes; mimic it so stale-cache bugs show up here.
+    const headers = {'Cache-Control':'max-age=600'};
+    if (OVERRIDES.has(p)) {
+      res.writeHead(200, {...headers, 'Content-Type': TYPES[path.extname(p)] || 'application/octet-stream'});
+      res.end(OVERRIDES.get(p)); return;
+    }
     const f = path.join(ROOT, p);
     if (!f.startsWith(ROOT) || !fs.existsSync(f) || fs.statSync(f).isDirectory()) { res.writeHead(404); res.end(); return; }
-    res.writeHead(200, {'Content-Type': TYPES[path.extname(f)] || 'application/octet-stream'});
+    res.writeHead(200, {...headers, 'Content-Type': TYPES[path.extname(f)] || 'application/octet-stream'});
     fs.createReadStream(f).pipe(res);
   });
   return new Promise(r => srv.listen(0, '127.0.0.1', () => r(srv)));
@@ -304,6 +312,46 @@ const main = async () => {
       await page.reload();
       const chord = await page.textContent('#curChord');
       check('starts offline from the service worker cache', chord && chord !== '—', chord);
+      await ctx.close();
+    }
+
+    // --- publishing a new version reaches an open app ---
+    {
+      const ctx = await browser.newContext({viewport:{width:390, height:844}});
+      const page = await ctx.newPage();
+      const errors = [];
+      page.on('pageerror', e => errors.push(e.message));
+      await page.route(/fonts\.(googleapis|gstatic)\.com/, r => r.abort());
+      await page.addInitScript(() => { try { localStorage.setItem('jit-intro-done', 'true'); } catch (e) {} });
+      await page.goto(base);
+      await page.evaluate(() => navigator.serviceWorker.ready);
+      await page.reload();
+      await page.waitForFunction(() => !!navigator.serviceWorker.controller);
+
+      // "deploy" the next version: new cache name, a marker in the page and in a module
+      const read = f => fs.readFileSync(path.join(ROOT, f), 'utf8');
+      OVERRIDES.set('/sw.js', read('sw.js').replace(/const CACHE = '[^']+';/, "const CACHE = 'adlib-test-next';"));
+      OVERRIDES.set('/index.html', read('index.html').replace('<head>', '<head><meta name="adlib-test" content="next">'));
+      OVERRIDES.set('/js/util.js', read('js/util.js') + '\n// adlib-test-next\n');
+
+      await page.click('#playBtn');                       // an update must not cut off playback
+      await page.evaluate(() => document.dispatchEvent(new Event('visibilitychange')));   // app comes back to the foreground
+      await wait(2500);
+      const midPlay = await page.evaluate(() => ({marker: !!document.querySelector('meta[name="adlib-test"]'),
+        playing: document.getElementById('playBtn').getAttribute('aria-label') === '停止'}));
+      check('update waits while playing', !midPlay.marker && midPlay.playing, JSON.stringify(midPlay));
+      await page.click('#playBtn');
+      await page.waitForFunction(() => !!document.querySelector('meta[name="adlib-test"]'), null, {timeout:10000})
+        .then(() => check('new version loads after stopping', true),
+              () => check('new version loads after stopping', false, 'page still shows the old version'));
+      const cached = await page.evaluate(async () => {
+        const keys = await caches.keys(), c = await caches.open('adlib-test-next');
+        const util = await c.match('js/util.js', {ignoreSearch:true});
+        return {keys, util: util ? (await util.text()).includes('adlib-test-next') : false};
+      });
+      check('the new cache holds the new files (not the HTTP-cached old ones)', cached.util && cached.keys.length === 1, JSON.stringify(cached));
+      check('no page errors (update)', !errors.length, errors.join(' | '));
+      OVERRIDES.clear();
       await ctx.close();
     }
   } finally {

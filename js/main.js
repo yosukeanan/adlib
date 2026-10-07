@@ -84,5 +84,20 @@ if (window.__adlibTest) Object.assign(window.__adlibTest, {S, update, Player, Mi
 
 // Offline support when served over HTTPS (GitHub Pages). Silently skipped elsewhere.
 if ('serviceWorker' in navigator && (location.protocol === 'https:' || location.hostname === 'localhost')) {
-  window.addEventListener('load', () => navigator.serviceWorker.register('sw.js').catch(() => {}));
+  const sw = navigator.serviceWorker, hadController = !!sw.controller;
+  window.addEventListener('load', () => sw.register('sw.js').catch(() => {}));
+  // A home-screen app is usually resumed, not reloaded, so look for a new version whenever it comes back.
+  document.addEventListener('visibilitychange', () => {
+    if (!document.hidden) sw.getRegistration().then(r => r && r.update()).catch(() => {});
+  });
+  // A new version took over: reload once to run it, but never in the middle of playing or measuring.
+  let reloading = false;
+  const reloadWhenIdle = () => {
+    if (Player.playing || $('micSetup').open) { setTimeout(reloadWhenIdle, 1000); return; }
+    location.reload();
+  };
+  sw.addEventListener('controllerchange', () => {
+    if (!hadController || reloading) return;   // first install: the page is already current
+    reloading = true; reloadWhenIdle();
+  });
 }
