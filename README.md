@@ -17,8 +17,9 @@
 | `js/voicing.js` | コンピング用のシェル・ボイシングとボイスリーディング |
 | `js/board.js` `js/ui.js` | 指板と画面の描画 |
 | `sw.js` | オフライン用のService Worker |
-| `docs/ux-plan.md` | UI/UX改善計画 |
-| `docs/comping-plan.md` | コンピング練習モードの計画とベンチマーク |
+| `docs/roadmap.md` | **最新の計画**（進み具合、問題と原因、修正計画、優先順位） |
+| `docs/ux-plan.md` | UI/UX改善計画（詳細） |
+| `docs/comping-plan.md` | コンピング練習モードの計画とベンチマーク（詳細） |
 
 ## 手元で動かす
 
@@ -41,4 +42,4 @@ npm test
 ## 更新して公開するとき
 
 1. `js/` にファイルを足したら、`sw.js` の `ASSETS` にも追加する（`npm test` が漏れを検出します）。
-2. `sw.js` の `CACHE` の版数を上げる（例：`adlib-v2` → `adlib-v3`）。上げ忘れると古い版が残ります。
+2. `sw.js` の `CACHE` の版数を上げる（例：`adlib-v4` → `adlib-v5`）。上げ忘れると、入っているアプリに新しい版が届きません。
