@@ -18,6 +18,8 @@ const DEFAULTS = {prog:'251', keyPc:0, bpm:120, swing:62, mode:'guide', pos:'5-9
   compVoicing:'auto',   // shell root string: 'auto' (voice-led) | '6' | '5'
   compRhythm:'charleston',
   compGuide:false,      // play the shells in the rhythm as an example
+  compType:'shell',     // 'shell' (3 notes) | 'drop2' (4 notes)
+  compLine:'off',       // top-note line: 'off' | 'up' | 'down' | 'wave' (overrides position moves)
   posMove:'off',        // move the fret window every N bars: 'off' | '2' | '4' | '8' (solo and comping)
   strSet:'all'};        // solo: show chord tones only on these strings ('all' | '1' | '2' | '3' | '12' | '23' | '34')
 const saved = storage.get('jit-settings', {});
@@ -29,6 +31,7 @@ delete S.mix;
 if (!SONGS.some(s => s.id === S.prog)) S.prog = DEFAULTS.prog;
 if (!POSITIONS[S.pos]) S.pos = DEFAULTS.pos;
 if (!COMP_RHYTHMS[S.compRhythm]) S.compRhythm = DEFAULTS.compRhythm;
+if (S.compType !== 'drop2' && S.compVoicing === '4') S.compVoicing = 'auto';   // 4〜1弦 exists for drop-2 only
 
 /** Apply a settings patch, persist it and re-render what changed. */
 function update(patch) {

@@ -9,7 +9,7 @@ import {Mic, judgeOffset} from './mic.js';
 import {Board} from './board.js';
 import {Synth} from './synth.js';
 import {COMP_RHYTHMS} from './band.js';
-import {voicingFor} from './voicing.js';
+import {voicingFor, topOf} from './voicing.js';
 
 const SEGS = {
   mode:     {key:'mode',     opts:() => [['chord','コード音'],['guide','ガイド'],['scale','スケール'],['hidden','かくす']]},
@@ -24,7 +24,11 @@ const SEGS = {
   boardSize:{key:'boardSize',opts:() => [['std','標準'],['large','大きく']]},
   practice: {key:'practice', opts:() => [['solo','ソロ'],['comp','コンピング']]},
   compRhythm:{key:'compRhythm',opts:() => Object.entries(COMP_RHYTHMS).map(([k, r]) => [k, r.label])},
-  compVoicing:{key:'compVoicing',opts:() => [['auto','自動'],['6','6弦ルート'],['5','5弦ルート']]},
+  compVoicing:{key:'compVoicing',opts:() => S.compType === 'drop2'
+    ? [['auto','自動'],['6','6〜3弦'],['5','5〜2弦'],['4','4〜1弦']]
+    : [['auto','自動'],['6','6弦ルート'],['5','5弦ルート']]},
+  compType: {key:'compType', opts:() => [['shell','シェル（3音）'],['drop2','ドロップ2（4音）']]},
+  compLine: {key:'compLine', opts:() => [['off','オフ'],['up','上行'],['down','下行'],['wave','波']]},
   compGuide:{key:'compGuide', opts:() => [[false,'オフ'],[true,'鳴らす']]},
   posMove:  {key:'posMove',  opts:() => [['off','オフ'],['2','2小節'],['4','4小節'],['8','8小節']]},
   strSet:   {key:'strSet',   opts:() => [['all','全部'],['1','1弦'],['2','2弦'],['3','3弦'],['12','1・2弦'],['23','2・3弦'],['34','3・4弦']]}
@@ -38,7 +42,10 @@ const Seg = {
   },
   sync(name) {
     const cfg = SEGS[name], opts = cfg.opts();
-    this.els(name).forEach(el => el.querySelectorAll('button').forEach(b => b.setAttribute('aria-pressed', String(opts[+b.dataset.i][0] === S[cfg.key]))));
+    this.els(name).forEach(el => el.querySelectorAll('button').forEach(b => {
+      const o = opts[+b.dataset.i];
+      b.setAttribute('aria-pressed', String(!!o && o[0] === S[cfg.key]));
+    }));
   },
   pick(name, i) { const cfg = SEGS[name]; update({[cfg.key]: cfg.opts()[i][0]}); }
 };
@@ -53,7 +60,7 @@ const LEGENDS = {
   guide: '<span><i style="background:var(--ct)"></i>今の3rd・7th</span><span><i class="ring"></i>次のコードの3rd・7th</span><span>薄い点はR・5th</span>',
   scale: '<span><i style="background:var(--ct)"></i>コードトーン</span><span><i style="background:var(--ten)"></i>テンション</span><span><i style="background:var(--avoid)"></i>アヴォイド</span>',
   hidden:'<span>指板を隠して、耳とコード名だけで弾きます。マイク判定は続きます。</span>',
-  comp:  '<span><i style="background:var(--root)"></i>ルート</span><span><i style="background:var(--ct)"></i>3rd・7th</span><span><i class="ring"></i>次のシェル</span>'
+  comp:  '<span><i style="background:var(--root)"></i>ルート</span><span><i style="background:var(--ct)"></i>ほかのコード音</span><span><i class="ring"></i>次の形</span>'
 };
 
 const UI = {
@@ -71,6 +78,10 @@ const UI = {
   /** Re-render only what a settings change affects. */
   render(changed) {
     const has = k => changed.has(k);
+    if (has('compType')) {                                  // string-set choices differ by type: rebuild before syncing
+      Seg.build('compVoicing');
+      if (S.compType !== 'drop2' && S.compVoicing === '4') update({compVoicing:'auto'});   // 4〜1弦 is drop-2 only
+    }
     Object.keys(SEGS).forEach(n => Seg.sync(n));
     if (has('prog')) { Seg.build('key'); this.renderSongs(); }
     if (has('prog') || has('keyPc')) { this.renderSongLabel(); this.renderSheet(); if (!Player.playing) this.preview(); }
@@ -82,8 +93,9 @@ const UI = {
     if (has('mode')) { this.renderLegend(); Board.drawNotes(this.view); }
     if (has('practice') || has('compRhythm')) this.renderPractice();
     else if (has('posMove') || has('strSet')) { Board.drawNotes(this.view); this.renderVoicingTag(); }
-    if (has('practice') || has('strSet')) this.renderPosChips();
-    else if (has('compVoicing')) { Board.drawNotes(this.view); this.renderVoicingTag(); }
+    if (has('practice') || has('strSet') || has('compLine')) this.renderPosChips();
+    else if (has('compVoicing') || has('compType') || has('compLine')) { Board.drawNotes(this.view); this.renderVoicingTag(); }
+    if (has('compLine')) $('posMoveComp').classList.toggle('off', S.compLine !== 'off');
     if (has('pos') || has('boardSize')) { Board.layout(); Board.drawNotes(this.view); }
     if (has('latency')) this.renderLatency();
     if (has('audioOut')) this.micState();
@@ -146,8 +158,10 @@ const UI = {
     const el = $('status'); el.className = 'status ' + kind; el.textContent = text;
   },
 
-  /** Position chips do nothing while solo shows limited strings over the whole neck. */
-  renderPosChips() { $('posChips').hidden = S.practice === 'solo' && S.strSet !== 'all'; },
+  /** Position chips do nothing while solo shows limited strings, or while comping follows a top-note line. */
+  renderPosChips() {
+    $('posChips').hidden = S.practice === 'solo' ? S.strSet !== 'all' : S.compLine !== 'off';
+  },
 
   /** True in the last bar before the fret window moves. */
   moveSoon(e) {
@@ -206,6 +220,7 @@ const UI = {
     $('compStage').hidden = !comp; $('compCard').hidden = !comp;
     $('micCard').hidden = comp; $('modeSeg').hidden = comp;
     if (comp) { $('stageDet').hidden = true; if (Mic.on) Mic.stop(); }   // single-note judging does not fit chords
+    $('posMoveComp').classList.toggle('off', S.compLine !== 'off');   // the line plans over the whole neck
     this.renderLegend(); this.renderRhythm(); this.renderVoicingTag();
     Board.drawNotes(this.view);
   },
@@ -222,7 +237,8 @@ const UI = {
   },
   renderVoicingTag() {
     const v = S.practice === 'comp' && voicingFor(this.view.chord, S);
-    $('voicingTag').textContent = v ? v.name : '';
+    const top = v && S.compLine !== 'off' ? `・トップ ${NOTE[topOf(v) % 12]}` : '';
+    $('voicingTag').textContent = v ? v.name + top : '';
   },
   calibMsg(t) { document.querySelectorAll('[data-calib-msg]').forEach(el => { el.textContent = t; }); },
   renderLatency() {

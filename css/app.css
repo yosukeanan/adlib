@@ -117,6 +117,7 @@ input[type=range]{width:100%;accent-color:var(--accent);height:28px;margin:0}
 #board .d-faint circle{fill:var(--ct);opacity:.45} #board .d-faint text{fill:var(--ct-ink)}
 #board .d-root.d-faint circle{fill:var(--root);opacity:.55} #board .d-root.d-faint text{fill:var(--root-ink)}
 #board .d-next{fill:none;stroke:var(--next);stroke-width:2.6}
+#board .d-top{fill:none;stroke:var(--accent);stroke-width:2.6;stroke-dasharray:4 3}
 #board .d-det{fill:none;stroke:#fff;stroke-width:3;transform-box:fill-box;transform-origin:center;animation:det 1.1s ease-out forwards}
 @keyframes det{0%{opacity:1;transform:scale(.8)}100%{opacity:0;transform:scale(1.35)}}
 .board-card .chips{margin-top:10px}

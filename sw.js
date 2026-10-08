@@ -1,6 +1,6 @@
 // Ad-lib trainer service worker: versioned offline cache.
 // Bump CACHE when you upload a new version so old files are cleared.
-const CACHE = 'adlib-v5';
+const CACHE = 'adlib-v6';
 // Every file the app needs offline. Add new modules here (tests/smoke.mjs checks this list).
 const ASSETS = [
   './', './index.html', './manifest.webmanifest', './css/app.css',

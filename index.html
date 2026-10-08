@@ -76,13 +76,15 @@
 
     <section class="card group" id="compCard" hidden>
       <h2>コンピング</h2>
-      <p>ピアノは止まり、ベースとドラムだけになります。指板のシェル（3音）を、リズムに合わせて弾きます。</p>
+      <p>ピアノは止まり、ベースとドラムだけになります。指板の形を、リズムに合わせて弾きます。</p>
       <div class="field"><div class="lab"><span>リズム</span></div><div class="chips" data-seg="compRhythm" role="group" aria-label="リズム"></div><div class="hint" id="rhythmHint"></div></div>
-      <div class="field"><div class="lab"><span>ボイシング</span></div><div class="seg" data-seg="compVoicing" role="group" aria-label="ボイシング"></div><div class="hint">「自動」は、手の移動が少なくなるように6弦ルートと5弦ルートを選びます。</div></div>
+      <div class="field"><div class="lab"><span>形</span></div><div class="seg" data-seg="compType" role="group" aria-label="形"></div><div class="hint">シェルはルート・3rd・7thの3音。ドロップ2は4音で転回形があり、ネックのどこでも弾けます。</div></div>
+      <div class="field"><div class="lab"><span>弦</span></div><div class="seg" data-seg="compVoicing" role="group" aria-label="弦"></div><div class="hint">「自動」は、手の移動が少なくなるように弦を選びます。</div></div>
       <div class="field"><div class="lab"><span>お手本</span></div><div class="seg" data-seg="compGuide" role="group" aria-label="お手本"></div>
         <div class="vol-row"><span>音量</span><input type="range" min="0" max="100" step="5" data-vol="guide" aria-label="お手本の音量"><b data-vol-lbl="guide"></b></div>
-        <div class="hint">オンにすると、シェルをリズムどおりに鳴らします。形とリズムを耳で確かめてから、オフにして自分で弾きます。</div></div>
-      <div class="field"><div class="lab"><span>ポジション移動</span></div><div class="seg" data-seg="posMove" role="group" aria-label="ポジション移動"></div><div class="hint">オンにすると、指定した小節ごとに使うフレットの範囲がネックを上り下りします。オフは手の移動が最小になる形を選びます。</div></div>
+        <div class="hint">オンにすると、指板の形をリズムどおりに鳴らします。形とリズムを耳で確かめてから、オフにして自分で弾きます。</div></div>
+      <div class="field"><div class="lab"><span>トップノートの線</span></div><div class="seg" data-seg="compLine" role="group" aria-label="トップノートの線"></div><div class="hint">一番上の音が、上行・下行・波の線を描くように形を選びます。オンの間は、ネック全体から選びます（ポジション移動は止まります）。ドロップ2で効果が大きく出ます。</div></div>
+      <div class="field" id="posMoveComp"><div class="lab"><span>ポジション移動</span></div><div class="seg" data-seg="posMove" role="group" aria-label="ポジション移動"></div><div class="hint">オンにすると、指定した小節ごとに使うフレットの範囲がネックを上り下りします。オフは手の移動が最小になる形を選びます。</div></div>
       <p class="hint">マイクでの和音の判定は準備中です。</p>
     </section>
 
@@ -158,7 +160,7 @@
       <div class="vol-row"><span>ピアノ</span><input type="range" min="0" max="100" step="5" data-vol="comp" aria-label="ピアノの音量"><b data-vol-lbl="comp"></b></div>
       <div class="vol-row"><span>ドラム</span><input type="range" min="0" max="100" step="5" data-vol="drums" aria-label="ドラムの音量"><b data-vol-lbl="drums"></b></div>
       <div class="vol-row"><span>お手本</span><input type="range" min="0" max="100" step="5" data-vol="guide" aria-label="お手本の音量"><b data-vol-lbl="guide"></b></div>
-      <p class="hint">「ピアノ」はソロ練習の伴奏、「お手本」はコンピング練習で鳴らすシェルです。</p>
+      <p class="hint">「ピアノ」はソロ練習の伴奏、「お手本」はコンピング練習で鳴らす見本の和音です。</p>
     </section>
 
     <section class="card group">
