@@ -252,7 +252,9 @@ const main = async () => {
         let n = 0;
         for (const song of SONGS) for (let key = 0; key < 12; key++) for (const range of [[5, 9], [0, 4], [0, 15]]) {
           const chords = Voicing.chorusChords(song, key);
-          const auto = Voicing.lead(chords, 'auto', range), six = Voicing.lead(chords, '6', range), five = Voicing.lead(chords, '5', range);
+          // pure voice leading (no forced variation): searching both root strings can only help
+          const o = {vary:false};
+          const auto = Voicing.lead(chords, 'auto', range, o), six = Voicing.lead(chords, '6', range, o), five = Voicing.lead(chords, '5', range, o);
           n++;
           if (auto.path.length !== chords.length || auto.path.some(p => !p)) bad.push(`${song.id} key${key}: missing shape`);
           if (auto.cost > Math.min(six.cost, five.cost) + 1e-9) bad.push(`${song.id} key${key} ${range}: auto ${auto.cost.toFixed(2)} > fixed`);
@@ -272,9 +274,10 @@ const main = async () => {
       check('Charleston lights two rhythm cells', ui.hits === 2);
 
       await page.evaluate(() => {
-        const {Synth} = window.__adlibTest, orig = Synth.keys;
-        window.__keys = 0;
-        Synth.keys = function (...a) { window.__keys++; return orig.apply(this, a); };
+        const {Synth} = window.__adlibTest, origKeys = Synth.keys, origPluck = Synth.pluck;
+        window.__keys = 0; window.__plucks = 0;
+        Synth.keys = function (...a) { window.__keys++; return origKeys.apply(this, a); };
+        Synth.pluck = function (...a) { window.__plucks++; return origPluck.apply(this, a); };
       });
       const keysWhilePlaying = async ms => {
         await page.evaluate(() => { window.__keys = 0; });
@@ -283,7 +286,9 @@ const main = async () => {
       };
       check('piano is silent in comping mode', (await keysWhilePlaying(3000)) === 0);
       await page.click('[data-seg="compGuide"] button[data-i="1"]');
-      check('"お手本" plays the shells', (await keysWhilePlaying(3000)) > 0);
+      await page.evaluate(() => { window.__plucks = 0; });
+      const pianoWithGuide = await keysWhilePlaying(3000);
+      check('"お手本" plays the shells with its own tone, piano stays silent', pianoWithGuide === 0 && await page.evaluate(() => window.__plucks) > 0);
 
       const labels = await page.$$eval('[data-seg="compRhythm"] button', bs => bs.map(b => b.textContent));
       check('rhythm buttons keep the declared order', labels[0] === 'フォー・ビート' && labels[1] === '2・4拍', labels.join(' / '));
@@ -296,6 +301,128 @@ const main = async () => {
       check('piano plays again in solo mode', (await keysWhilePlaying(3000)) > 0);
 
       check('no page errors (comping)', !errors.length, errors.join(' | '));
+      await page.close();
+    }
+
+    // --- volume mixer and fret movement (roadmap A, B, C) ---
+    {
+      const {page, errors} = await newPage(browser, 390, 844);
+      await page.goto(base);
+
+      // A1: the guide sounds about as loud as the bass where a phone speaker plays (above 300 Hz)
+      const lv = await page.evaluate(async () => {
+        const {Synth} = window.__adlibTest, saved = Synth.ctx;
+        const render = async (fn, vol) => {
+          const sr = 48000, oc = new OfflineAudioContext(1, sr, sr);
+          Synth.vol = vol || null; Synth.build(oc); fn(0.05);
+          const x = (await oc.startRendering()).getChannelData(0);
+          let y = 0, px = 0, hs = 0; const a = 1 / (1 + 2 * Math.PI * 300 / sr);
+          for (const v of x) { y = a * (y + v - px); px = v; hs += y * y; }
+          return 10 * Math.log10(hs / x.length + 1e-20);
+        };
+        const bass = await render(t => Synth.bass(t, 41, 0.46));
+        const guides = [];
+        for (const notes of [[45, 55, 65], [43, 53, 59], [48, 59, 64]]) guides.push(await render(t => Synth.pluck(t, notes, 0.45)));
+        const muted = await render(t => Synth.pluck(t, [45, 55, 65], 0.45), {master:100, bass:100, comp:100, drums:100, guide:0});
+        Synth.ctx = saved; Synth.vol = null;
+        return {bass, guides, muted};
+      });
+      const diffs = lv.guides.map(g => g - lv.bass);
+      check('guide is within ±3 dB of the bass above 300 Hz', diffs.every(d => Math.abs(d) <= 3), diffs.map(d => d.toFixed(1) + 'dB').join(', '));
+      check('guide volume 0 is silent', lv.muted < -90, lv.muted.toFixed(0) + 'dB');
+
+      // A2/A3: both guide sliders drive the same setting
+      await page.evaluate(() => { const el = document.querySelector('#compCard [data-vol="guide"]'); el.value = 50; el.dispatchEvent(new Event('input', {bubbles:true})); });
+      const sl = await page.evaluate(() => ({s: window.__adlibTest.S.vol.guide, other: document.querySelector('#view-setup [data-vol="guide"]').value,
+        lbl: document.querySelector('#view-setup [data-vol-lbl="guide"]').textContent}));
+      check('guide slider updates the setting and the other slider', sl.s === 50 && sl.other === '50' && sl.lbl === '50%', JSON.stringify(sl));
+
+      // B2: a repeated chord never keeps the identical shape
+      const rep = await page.evaluate(() => {
+        const {Voicing, SONGS} = window.__adlibTest, bad = [];
+        for (const song of SONGS) for (let key = 0; key < 12; key++) for (const range of [[5, 9], [0, 4], [0, 15]]) {
+          const ch = Voicing.chorusChords(song, key), {path} = Voicing.lead(ch, 'auto', range);
+          for (let i = 1; i < ch.length; i++) {
+            const same = ch[i].pc === ch[i - 1].pc && ch[i].q === ch[i - 1].q && path[i].tpl === path[i - 1].tpl && path[i].lo === path[i - 1].lo;
+            // repeating is allowed only when every other shape is 3+ frets outside the window (e.g. open Emaj7 in 開放〜4)
+            const near = Voicing.shapes(ch[i].pc, ch[i].q).filter(v => !(v.tpl === path[i].tpl && v.lo === path[i].lo))
+              .some(v => Math.max(0, range[0] - v.lo) + Math.max(0, v.hi - range[1]) <= 2);
+            if (same && near) bad.push(`${song.id} key${key} ${range} #${i}`);
+          }
+        }
+        return bad;
+      });
+      check('repeated chords change shape when another shape is within 2 frets', !rep.length, rep.slice(0, 3).join('; '));
+
+      // B1: with position moves the shells travel at least 10 frets over 40 bars
+      const travel = await page.evaluate(() => {
+        const {Voicing, SONGS} = window.__adlibTest, out = {};
+        for (const song of SONGS) {
+          const S = {prog:song.id, compVoicing:'auto', pos:'5-9', posMove:'2'};
+          let lo = 99, hi = 0;
+          for (let g = 0; g < 40; g++) for (const c of song.bars[g % song.bars.length]) {
+            const v = Voicing.voicingFor({bar:g % song.bars.length, start:c.start, key:song.keyPc, g}, S);
+            lo = Math.min(lo, v.lo); hi = Math.max(hi, v.hi);
+          }
+          // the most the song's chords could ever travel with shells (a one-chord tune has few shapes)
+          const all = song.bars.flat().flatMap(c => Voicing.shapes(c.pc, c.q));
+          const inventory = Math.max(...all.map(v => v.hi)) - Math.min(...all.map(v => v.lo));
+          out[song.id] = {travel: hi - lo, need: Math.min(10, inventory)};
+        }
+        return out;
+      });
+      const short = Object.entries(travel).filter(([, t]) => t.travel < t.need);
+      check('position moves spread comping over 10+ frets (or every shell the chords have)', !short.length,
+        Object.entries(travel).map(([k, t]) => `${k}:${t.travel}${t.need < 10 ? '/' + t.need : ''}`).join(' '));
+
+      // B4: comping keeps the whole shell on screen (G7 sits at fret 10 when the position is 5〜9)
+      await page.click('[data-seg="practice"] button[data-i="1"]');
+      const b4 = await page.evaluate(() => {
+        const {UI, Board} = window.__adlibTest;
+        UI.setView({pc:7, q:'7', beats:4, start:0, bar:1, key:0, g:0}, null, 'test');
+        return {dots: document.querySelectorAll('#gNotes > g').length, range: [Board.g.f0, Board.g.f1], tag: document.getElementById('voicingTag').textContent};
+      });
+      check('board slides to keep the shell visible', b4.dots === 3 && b4.range[1] >= 10, JSON.stringify(b4));
+      await page.click('[data-seg="practice"] button[data-i="0"]');
+
+      // C1: solo window moves while playing, with a notice the bar before
+      await page.evaluate(() => window.__adlibTest.update({posMove:'2', bpm:300}));
+      const seen = new Set(); let notice = '';
+      await page.click('#playBtn');
+      for (let i = 0; i < 30; i++) {
+        await wait(200);
+        const st = await page.evaluate(() => ({f0: window.__adlibTest.Board.g.f0, txt: document.getElementById('status').textContent}));
+        seen.add(st.f0); if (/^次は .* フレットへ$/.test(st.txt)) notice = st.txt;
+      }
+      await page.click('#playBtn');
+      check('solo fret window moves every 2 bars', seen.size >= 2, [...seen].join(' → '));
+      check('the move is announced a bar ahead', !!notice, notice);
+
+      // C2: string limit shows only that string, over the whole neck
+      await page.evaluate(() => window.__adlibTest.update({posMove:'off', strSet:'1'}));
+      const c2 = await page.evaluate(() => {
+        const {Board} = window.__adlibTest, ys = [...document.querySelectorAll('#gNotes circle')].map(c => +c.getAttribute('cy'));
+        return {n: ys.length, onlyE: ys.every(y => y === Board.y(5)), range: [Board.g.f0, Board.g.f1]};
+      });
+      check('string limit shows chord tones on the 1st string only, whole neck', c2.n > 0 && c2.onlyE && c2.range[0] === 0 && c2.range[1] === 15, JSON.stringify(c2));
+      check('position chips hidden while strings are limited', !(await page.isVisible('#posChips')));
+      await page.evaluate(() => window.__adlibTest.update({strSet:'all', bpm:120}));
+      check('position chips back with all strings', await page.isVisible('#posChips'));
+
+      check('no page errors (volume / movement)', !errors.length, errors.join(' | '));
+      await page.close();
+    }
+
+    // --- settings saved by an older version (on/off mixer) ---
+    {
+      const page = await browser.newPage({viewport:{width:390, height:844}});
+      await page.route(/fonts\.(googleapis|gstatic)\.com/, r => r.abort());
+      await page.addInitScript(installFakeMic);
+      await page.addInitScript(() => localStorage.setItem('jit-settings', JSON.stringify({mix:{bass:true, comp:false, drums:true}, bpm:140})));
+      await page.goto(base);
+      const m = await page.evaluate(() => ({vol: window.__adlibTest.S.vol, mix: window.__adlibTest.S.mix, bpm: window.__adlibTest.S.bpm,
+        lbl: document.querySelector('[data-vol-lbl="comp"]').textContent}));
+      check('old "piano off" becomes piano volume 0', m.vol.comp === 0 && m.vol.bass === 100 && m.mix === undefined && m.bpm === 140 && m.lbl === 'オフ', JSON.stringify(m));
       await page.close();
     }
 

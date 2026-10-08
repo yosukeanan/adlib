@@ -8,7 +8,8 @@ import {UI} from './ui.js';
 
 const DEFAULTS = {prog:'251', keyPc:0, bpm:120, swing:62, mode:'guide', pos:'5-9',
   rampStep:0, rampMax:240, rot:'off', rotEvery:1, dropout:'off', phrase:'off',
-  mix:{bass:true, comp:true, drums:true}, gate:40,
+  vol:{master:100, bass:100, comp:100, drums:100, guide:100},   // mixer, percent (0 = off)
+  gate:40,
   boardSize:'std',      // fretboard size: 'std' | 'large'
   audioOut:null,        // 'ear' | 'speaker', answered in the mic setup guide
   latency:null,         // measured play-to-detect offset in seconds; null = estimate
@@ -16,9 +17,15 @@ const DEFAULTS = {prog:'251', keyPc:0, bpm:120, swing:62, mode:'guide', pos:'5-9
   practice:'solo',      // 'solo' | 'comp'
   compVoicing:'auto',   // shell root string: 'auto' (voice-led) | '6' | '5'
   compRhythm:'charleston',
-  compGuide:false};     // play the shells in the rhythm as an example
-const S = Object.assign({}, DEFAULTS, storage.get('jit-settings', {}));
-S.mix = Object.assign({}, DEFAULTS.mix, S.mix);
+  compGuide:false,      // play the shells in the rhythm as an example
+  posMove:'off',        // move the fret window every N bars: 'off' | '2' | '4' | '8' (solo and comping)
+  strSet:'all'};        // solo: show chord tones only on these strings ('all' | '1' | '2' | '3' | '12' | '23' | '34')
+const saved = storage.get('jit-settings', {});
+const S = Object.assign({}, DEFAULTS, saved);
+S.vol = Object.assign({}, DEFAULTS.vol, saved.vol);
+if (saved.mix && !saved.vol)                       // older versions had on/off toggles: off becomes 0%
+  for (const k of ['bass', 'comp', 'drums']) if (saved.mix[k] === false) S.vol[k] = 0;
+delete S.mix;
 if (!SONGS.some(s => s.id === S.prog)) S.prog = DEFAULTS.prog;
 if (!POSITIONS[S.pos]) S.pos = DEFAULTS.pos;
 if (!COMP_RHYTHMS[S.compRhythm]) S.compRhythm = DEFAULTS.compRhythm;

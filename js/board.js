@@ -1,14 +1,34 @@
 // Fretboard renderer (SVG).
 import {TUNING, STRING_NAMES, CHORDS, interval, classify, ivLabel} from './theory.js';
-import {POSITIONS} from './songs.js';
+import {POSITIONS, regionAt} from './songs.js';
 import {S} from './state.js';
 import {$} from './util.js';
 import {voicingFor} from './voicing.js';
 
 const Board = {
-  g:null,
-  layout() {
-    const [f0, f1] = POSITIONS[S.pos].r, n = f1 - f0 + 1, wide = S.pos === 'all', big = S.boardSize === 'large';
+  g:null, view:null,
+  /**
+   * The fret window to show for a view: the chosen position, or the moving one (posMove).
+   * Solo with limited strings shows the whole neck. Comping slides the window just enough to keep the shell on screen.
+   */
+  rangeFor(view) {
+    const c = view && view.chord;
+    if (S.practice === 'solo' && S.strSet !== 'all') return POSITIONS.all.r;
+    const key = S.posMove === 'off' ? S.pos : regionAt(c ? c.g || 0 : 0, S.pos, +S.posMove);
+    let [a, b] = POSITIONS[key].r;
+    if (S.practice === 'comp' && key !== 'all') {
+      const v = c && voicingFor(c, S);
+      if (v && v.lo < a) { b -= a - v.lo; a = v.lo; }
+      if (v && v.hi > b) { a += v.hi - b; b = v.hi; }
+    }
+    return [a, b];
+  },
+  /** Strings that solo mode may use (null = all). '1' is the high e string. */
+  strings() {
+    return S.practice === 'solo' && S.strSet !== 'all' ? [...S.strSet].map(c => 6 - +c) : null;
+  },
+  layout(range = this.rangeFor(this.view)) {
+    const [f0, f1] = range, n = f1 - f0 + 1, wide = n > 6, big = S.boardSize === 'large';
     const k = big ? 1.25 : 1;                                     // dot / label scale
     const fw = (wide ? 44 : 58) + (big ? 8 : 0), L = 22, T = big ? 22 : 18, sh = big ? 31 : 25, W = L + n * fw + 6, H = T + sh * 5 + 34;
     this.g = {f0, f1, n, fw, L, T, sh, W, H, k};
@@ -39,12 +59,21 @@ const Board = {
   },
   x(f) { return this.g.L + (f - this.g.f0 + 0.5) * this.g.fw; },
   y(st) { return this.g.T + (5 - st) * this.g.sh; },
-  each(fn) { for (let st = 0; st < 6; st++) for (let f = this.g.f0; f <= this.g.f1; f++) fn(st, f, TUNING[st] + f); },
+  each(fn) {
+    const only = this.strings();
+    for (let st = 0; st < 6; st++) {
+      if (only && !only.includes(st)) continue;
+      for (let f = this.g.f0; f <= this.g.f1; f++) fn(st, f, TUNING[st] + f);
+    }
+  },
   dot(x, y, cls, label, r, small) {
     const k = this.g.k;
     return `<g class="${cls}"><circle cx="${x}" cy="${y}" r="${r * k}"/><text class="lbl${small ? ' s' : ''}" x="${x}" y="${(y + (small ? 2.7 : 3.4) * k).toFixed(1)}">${label}</text></g>`;
   },
   drawNotes(view) {
+    this.view = view;
+    const r = this.rangeFor(view);
+    if (!this.g || r[0] !== this.g.f0 || r[1] !== this.g.f1) this.layout(r);
     const c = view && view.chord;
     if (c && this.g && S.practice === 'comp') { $('gNotes').innerHTML = this.shellSvg(c, view.next); return; }
     if (!c || !this.g || S.mode === 'hidden') { $('gNotes').innerHTML = ''; return; }
