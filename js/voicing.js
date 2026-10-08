@@ -41,9 +41,58 @@ function shapesOf(tpl, pc, q) {
   return out;
 }
 
-/** All shell shapes for a chord, optionally limited to one root string ('6' | '5'). */
-function shapes(pc, q, rootString = 'auto') {
-  return TEMPLATES.filter(t => rootString === 'auto' || t.root === rootString).flatMap(t => shapesOf(t, pc, q));
+/** The four chord tones of a drop-2 voicing (intervals above the root, ascending). */
+function drop2Tones(q) {
+  if (q === '7alt') return [0, 4, 8, 10];   // ♭13 in place of the 5th: the 7♯5 sound of an altered dominant
+  return CHORDS[q].ct;
+}
+
+// Drop-2 on the three sets of four adjacent strings. `root` names the lowest string of the set.
+const DROP2_SETS = [
+  {root:'6', strings:[0, 1, 2, 3], label:'6〜3弦'},
+  {root:'5', strings:[1, 2, 3, 4], label:'5〜2弦'},
+  {root:'4', strings:[2, 3, 4, 5], label:'4〜1弦'}
+];
+
+/**
+ * Every playable drop-2 shape of a chord on one string set: for each close-position inversion
+ * (a < b < c < d), the second voice from the top drops an octave, giving c-a-b-d from low to high.
+ */
+function drop2Of(set, pc, q) {
+  const T = drop2Tones(q), out = [];
+  for (let k = 0; k < 4; k++) {
+    const order = [T[(k + 2) % 4], T[k], T[(k + 1) % 4], T[(k + 3) % 4]];
+    for (let f0 = 0; f0 <= MAX_ROOT_FRET; f0++) {
+      if ((TUNING[set.strings[0]] + f0) % 12 !== (pc + order[0]) % 12) continue;
+      const notes = set.strings.map((st, i) => {
+        const want = (pc + order[i]) % 12;
+        let best = null;
+        for (let f = Math.max(0, f0 - 5); f <= f0 + 5; f++)
+          if ((TUNING[st] + f) % 12 === want && (best === null || Math.abs(f - f0) < Math.abs(best - f0))) best = f;
+        return {string:st, fret:best, iv:order[i], label:ivLabel(q, order[i]), midi:best === null ? null : TUNING[st] + best};
+      });
+      if (notes.some(n => n.fret === null)) continue;
+      if (notes.some((n, i) => i && n.midi <= notes[i - 1].midi)) continue;   // voices must rise string by string
+      const fr = notes.map(n => n.fret), lo = Math.min(...fr), hi = Math.max(...fr);
+      if (hi - lo > MAX_SPAN) continue;
+      out.push({tpl:`d2-${set.root}-${k}`, root:set.root, notes, lo, hi, center:(lo + hi) / 2,
+        name:`ドロップ2 ${set.label} ${notes.map(n => n.label).join('-')}`});
+    }
+  }
+  return out;
+}
+
+/**
+ * All shapes of a chord. type 'shell' (3 notes) or 'drop2' (4 notes).
+ * rootString limits the lowest string: shells '6' | '5', drop-2 '6' | '5' | '4'; anything else means all.
+ */
+function shapes(pc, q, rootString = 'auto', type = 'shell') {
+  if (type === 'drop2') {
+    const sets = DROP2_SETS.filter(t => t.root === rootString);
+    return (sets.length ? sets : DROP2_SETS).flatMap(t => drop2Of(t, pc, q));
+  }
+  const tpls = TEMPLATES.filter(t => t.root === rootString);
+  return (tpls.length ? tpls : TEMPLATES).flatMap(t => shapesOf(t, pc, q));
 }
 
 // Cost of a path: hand movement between consecutive shapes plus distance from the chosen position.
@@ -52,6 +101,17 @@ const W_MOVE = 1, W_STRINGSET = 0.75, W_CENTER = 0.35, W_OUTSIDE = 4;
 const REPEAT_REACH = 2;
 const outsideBy = (sh, [a, b]) => Math.max(0, a - sh.lo) + Math.max(0, sh.hi - b);
 const sameShape = (x, y) => x.tpl === y.tpl && x.lo === y.lo;
+const topOf = sh => Math.max(...sh.notes.map(n => n.midi));
+
+// Top-note line: the highest voice follows a target contour between these pitches (D4 … E5).
+const LINE_LO = 62, LINE_HI = 76, W_TOP = 1.0;
+/** Target top pitch for chord i of n. */
+function lineTarget(line, i, n) {
+  const x = n > 1 ? i / (n - 1) : 0;
+  if (line === 'up') return LINE_LO + (LINE_HI - LINE_LO) * x;
+  if (line === 'down') return LINE_HI - (LINE_HI - LINE_LO) * x;
+  return (LINE_LO + LINE_HI) / 2 + (LINE_HI - LINE_LO) / 2 * Math.sin(2 * Math.PI * x);   // wave: up, down, back
+}
 function placeCost(sh, [a, b]) {
   const c = (a + b) / 2;
   return W_CENTER * Math.abs(sh.center - c) + W_OUTSIDE * outsideBy(sh, [a, b]);
@@ -67,10 +127,12 @@ function moveCost(p, n) {
  * @param chords [{pc, q}]  @param range [loFret, hiFret]
  * @returns {path: shape[], cost}
  */
-function lead(chords, rootString, range, {vary = true} = {}) {
+function lead(chords, rootString, range, {vary = true, type = 'shell', line = 'off'} = {}) {
   if (!chords.length) return {path:[], cost:0};
-  const layers = chords.map(c => shapes(c.pc, c.q, rootString));
-  let prev = layers[0].map(sh => ({sh, cost:placeCost(sh, range), back:null}));
+  const layers = chords.map(c => shapes(c.pc, c.q, rootString, type));
+  const n = chords.length;
+  const place = (sh, i) => placeCost(sh, range) + (line === 'off' ? 0 : W_TOP * Math.abs(topOf(sh) - lineTarget(line, i, n)));
+  let prev = layers[0].map(sh => ({sh, cost:place(sh, 0), back:null}));
   const hist = [prev];
   for (let i = 1; i < layers.length; i++) {
     prev = layers[i].map(sh => {
@@ -79,7 +141,7 @@ function lead(chords, rootString, range, {vary = true} = {}) {
       for (const p of prev) {
         // a repeated chord may keep its shape only when no other shape is within reach of the window
         if (vary && again && sameShape(p.sh, sh) && layers[i].some(o => !sameShape(o, sh) && outsideBy(o, range) <= REPEAT_REACH)) continue;
-        const cost = p.cost + moveCost(p.sh, sh) + placeCost(sh, range);
+        const cost = p.cost + moveCost(p.sh, sh) + place(sh, i);
         if (!best || cost < best.cost) best = {sh, cost, back:p};
       }
       return best;
@@ -98,13 +160,13 @@ function chorusChords(song, keyPc) {
   return song.bars.flatMap((bar, i) => bar.map(c => ({bar:i, start:c.start, pc:(c.pc + shift) % 12, q:c.q})));
 }
 
-// Plans are cached per song / key / root-string setting / position.
+// Plans are cached per song / key / settings / position.
 const cache = new Map();
-function planFor(songId, keyPc, rootString, pos) {
-  const k = `${songId}|${keyPc}|${rootString}|${pos}`;
+function planFor(songId, keyPc, rootString, pos, type, line) {
+  const k = `${songId}|${keyPc}|${rootString}|${pos}|${type}|${line}`;
   if (!cache.has(k)) {
     const song = SONGS.find(s => s.id === songId), chords = chorusChords(song, keyPc);
-    const {path} = lead(chords, rootString, POSITIONS[pos].r);
+    const {path} = lead(chords, rootString, POSITIONS[pos].r, {type, line});
     const m = new Map();
     chords.forEach((c, i) => m.set(`${c.bar}-${c.start}`, path[i]));
     if (cache.size > 64) cache.clear();
@@ -113,15 +175,16 @@ function planFor(songId, keyPc, rootString, pos) {
   return cache.get(k);
 }
 
-/** The fret window a chord is planned in: the chosen position, or the moving one ({g} = global bar). */
+/** The fret window a chord is planned in: the whole neck for a top-note line, else the chosen or moving position ({g} = global bar). */
 function windowFor(ch, S) {
+  if (S.compLine && S.compLine !== 'off') return 'all';
   return S.posMove === 'off' ? S.pos : regionAt(ch.g || 0, S.pos, +S.posMove);
 }
 
 /** The planned shape for a chord from chordAt() ({bar, start, key, g?}). */
 function voicingFor(ch, S) {
   if (!ch) return null;
-  return planFor(S.prog, ch.key, S.compVoicing, windowFor(ch, S)).get(`${ch.bar}-${ch.start}`) || null;
+  return planFor(S.prog, ch.key, S.compVoicing, windowFor(ch, S), S.compType || 'shell', S.compLine || 'off').get(`${ch.bar}-${ch.start}`) || null;
 }
 
-export {TEMPLATES, shellTones, shapes, lead, chorusChords, windowFor, voicingFor};
+export {TEMPLATES, DROP2_SETS, shellTones, drop2Tones, shapes, topOf, lineTarget, lead, chorusChords, windowFor, voicingFor};

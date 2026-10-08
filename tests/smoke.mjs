@@ -413,6 +413,92 @@ const main = async () => {
       await page.close();
     }
 
+    // --- drop-2 voicings and the top-note line (roadmap B3, B1) ---
+    {
+      const {page, errors} = await newPage(browser, 390, 844);
+      await page.goto(base);
+
+      const d2 = await page.evaluate(() => {
+        const {Voicing} = window.__adlibTest, TUN = [40, 45, 50, 55, 59, 64], errs = [];
+        let count = 0;
+        for (const q of ['maj7', '6', 'm7', 'm6', '7', '7alt', 'm7b5', 'dim7']) for (let pc = 0; pc < 12; pc++) for (const set of Voicing.DROP2_SETS) {
+          const list = Voicing.shapes(pc, q, set.root, 'drop2');
+          if (!list.length) errs.push(`no drop2 ${q} pc${pc} ${set.label}`);
+          for (const sh of list) {
+            count++;
+            const m = sh.notes.map(n => n.midi), fr = sh.notes.map(n => n.fret);
+            const want = Voicing.drop2Tones(q).map(i => (pc + i) % 12).sort().join(), got = m.map(x => x % 12).sort().join();
+            if (sh.notes.length !== 4 || got !== want) errs.push(`${q} pc${pc} ${sh.tpl}: notes ${got} != ${want}`);
+            if (m.some((x, i) => i && x <= m[i - 1])) errs.push(`${q} pc${pc} ${sh.tpl}: not rising`);
+            if (Math.max(...fr) - Math.min(...fr) > 3) errs.push(`${q} pc${pc} ${sh.tpl}: span`);
+            // drop-2: raising the lowest voice an octave gives a close-position chord (all within an octave)
+            const close = [...m.slice(1), m[0] + 12];
+            if (Math.max(...close) - Math.min(...close) >= 12) errs.push(`${q} pc${pc} ${sh.tpl}: not drop-2`);
+            if (sh.notes.some(n => TUN[n.string] + n.fret !== n.midi)) errs.push(`${q} pc${pc} ${sh.tpl}: midi`);
+          }
+        }
+        const tab = sh => [0, 1, 2, 3, 4, 5].map(st => { const n = sh.notes.find(x => x.string === st); return n ? n.fret : 'x'; }).join('');
+        const all = Voicing.shapes(0, 'maj7', 'auto', 'drop2').map(tab);
+        return {count, errs, known: ['x3545x', 'xx5557', '7755xx'].filter(t => !all.includes(t))};
+      });
+      check('every drop-2 shape is a real drop-2 of the chord, rising, four-fret span', !d2.errs.length, `${d2.count} shapes${d2.errs.length ? ' — ' + d2.errs.slice(0, 3).join('; ') : ''}`);
+      check('standard drop-2 shapes are generated (Cmaj7 x3545x, xx5557, 7755xx)', !d2.known.length, d2.known.join(', '));
+
+      const lines = await page.evaluate(() => {
+        const {Voicing, SONGS} = window.__adlibTest, bad = [], rise = {};
+        let maxMove = 0;
+        for (const song of SONGS) {
+          const ch = Voicing.chorusChords(song, song.keyPc);
+          const o = {type:'drop2', vary:false};
+          const auto = Voicing.lead(ch, 'auto', [5, 9], o);
+          for (const r of ['6', '5', '4']) if (auto.cost > Voicing.lead(ch, r, [5, 9], o).cost + 1e-9) bad.push(`${song.id}: auto > ${r}`);
+          for (const line of ['up', 'down']) {
+            const {path} = Voicing.lead(ch, 'auto', [0, 15], {type:'drop2', line}), tops = path.map(Voicing.topOf);
+            const d = (tops[tops.length - 1] - tops[0]) * (line === 'up' ? 1 : -1);
+            rise[`${song.id}-${line}`] = d;
+            path.slice(1).forEach((p, i) => { maxMove = Math.max(maxMove, Math.abs(p.center - path[i].center)); });
+          }
+        }
+        return {bad, rise, maxMove};
+      });
+      check('drop-2 voice leading: "auto" never costs more than one string set', !lines.bad.length, lines.bad.slice(0, 3).join('; '));
+      const flat = Object.entries(lines.rise).filter(([, d]) => d < 5);
+      check('top-note line moves the top voice 5+ semitones in its direction', !flat.length,
+        flat.length ? flat.map(([k, d]) => `${k}:${d}`).join(' ') : `min ${Math.min(...Object.values(lines.rise))} semitones`);
+      check('top-note line keeps hand moves small (≤ 4 frets per change)', lines.maxMove <= 4, `max ${lines.maxMove}`);
+
+      const modal = await page.evaluate(() => {
+        const {Voicing, SONGS} = window.__adlibTest, song = SONGS.find(s => s.id === 'modal');
+        const S = {prog:'modal', compVoicing:'auto', pos:'5-9', posMove:'2', compType:'drop2', compLine:'off'};
+        let lo = 99, hi = 0;
+        for (let g = 0; g < 40; g++) { const v = Voicing.voicingFor({bar:g % 4, start:0, key:song.keyPc, g}, S); lo = Math.min(lo, v.lo); hi = Math.max(hi, v.hi); }
+        return hi - lo;
+      });
+      check('drop-2 lifts the one-chord tune past the shell limit (10+ frets)', modal >= 10, `${modal} frets (shells: 7)`);
+
+      // UI
+      await page.click('[data-seg="practice"] button[data-i="1"]');
+      await page.click('[data-seg="compType"] button[data-i="1"]');
+      const u1 = await page.evaluate(() => ({dots: document.querySelectorAll('#gNotes > g').length, tag: document.getElementById('voicingTag').textContent,
+        sets: document.querySelectorAll('[data-seg="compVoicing"] button').length}));
+      check('drop-2 shows four notes and four string-set choices', u1.dots === 4 && /ドロップ2/.test(u1.tag) && u1.sets === 4, JSON.stringify(u1));
+      await page.click('[data-seg="compVoicing"] button[data-i="3"]');           // 4〜1弦
+      await page.click('[data-seg="compType"] button[data-i="0"]');              // back to shells
+      const u2 = await page.evaluate(() => ({v: window.__adlibTest.S.compVoicing, sets: document.querySelectorAll('[data-seg="compVoicing"] button').length,
+        dots: document.querySelectorAll('#gNotes > g').length}));
+      check('back to shells resets 4〜1弦 to auto', u2.v === 'auto' && u2.sets === 3 && u2.dots === 3, JSON.stringify(u2));
+      await page.click('[data-seg="compType"] button[data-i="1"]');
+      await page.click('[data-seg="compLine"] button[data-i="1"]');
+      const u3 = await page.evaluate(() => ({tag: document.getElementById('voicingTag').textContent, top: document.querySelectorAll('#gNotes .d-top').length,
+        posOff: document.getElementById('posMoveComp').classList.contains('off'), range: [window.__adlibTest.Board.g.f0, window.__adlibTest.Board.g.f1]}));
+      check('top-note line marks the top voice and pauses position moves', /トップ/.test(u3.tag) && u3.top === 1 && u3.posOff && u3.range[1] - u3.range[0] === 4, JSON.stringify(u3));
+      check('position chips hidden during a top-note line', !(await page.isVisible('#posChips')));
+      await page.evaluate(() => window.__adlibTest.update({compLine:'off', compType:'shell', practice:'solo'}));
+
+      check('no page errors (drop-2 / line)', !errors.length, errors.join(' | '));
+      await page.close();
+    }
+
     // --- settings saved by an older version (on/off mixer) ---
     {
       const page = await browser.newPage({viewport:{width:390, height:844}});

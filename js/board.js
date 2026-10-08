@@ -14,6 +14,10 @@ const Board = {
   rangeFor(view) {
     const c = view && view.chord;
     if (S.practice === 'solo' && S.strSet !== 'all') return POSITIONS.all.r;
+    if (S.practice === 'comp' && S.compLine !== 'off') {          // the line roams the neck: follow the shape
+      const v = c && voicingFor(c, S), a = v ? Math.max(0, v.lo - 1) : 5;
+      return [a, a + 4];
+    }
     const key = S.posMove === 'off' ? S.pos : regionAt(c ? c.g || 0 : 0, S.pos, +S.posMove);
     let [a, b] = POSITIONS[key].r;
     if (S.practice === 'comp' && key !== 'all') {
@@ -103,6 +107,10 @@ const Board = {
     let s = '';
     if (nv) for (const n of nv.notes.filter(shown)) s += `<circle class="d-next" cx="${this.x(n.fret)}" cy="${this.y(n.string)}" r="${12 * k}"/>`;
     if (v) for (const n of v.notes.filter(shown)) s += this.dot(this.x(n.fret), this.y(n.string), n.iv === 0 ? 'd-root' : 'd-ct', n.label, 10.5);
+    if (v && S.compLine !== 'off') {                              // the top voice carries the line
+      const t = v.notes.reduce((a, b) => (a.midi > b.midi ? a : b));
+      if (shown(t)) s += `<circle class="d-top" cx="${this.x(t.fret)}" cy="${this.y(t.string)}" r="${14 * k}"/>`;
+    }
     return s;
   },
   flash(midi) {
