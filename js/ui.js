@@ -92,9 +92,8 @@ const UI = {
     if (has('rampStep') || has('rot')) this.renderDeps();
     if (has('mode')) { this.renderLegend(); Board.drawNotes(this.view); }
     if (has('practice') || has('compRhythm')) this.renderPractice();
-    else if (has('posMove') || has('strSet')) { Board.drawNotes(this.view); this.renderVoicingTag(); }
+    else if (['posMove', 'strSet', 'compVoicing', 'compType', 'compLine'].some(has)) { Board.drawNotes(this.view); this.renderVoicingTag(); }
     if (has('practice') || has('strSet') || has('compLine')) this.renderPosChips();
-    else if (has('compVoicing') || has('compType') || has('compLine')) { Board.drawNotes(this.view); this.renderVoicingTag(); }
     if (has('compLine')) $('posMoveComp').classList.toggle('off', S.compLine !== 'off');
     if (has('pos') || has('boardSize')) { Board.layout(); Board.drawNotes(this.view); }
     if (has('latency')) this.renderLatency();
