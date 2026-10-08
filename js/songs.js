@@ -35,4 +35,15 @@ const POSITIONS = {
   '12-16':{r:[12,16], label:'12〜16'}
 };
 
-export {SONGS, POSITIONS};
+// Position moves walk up the neck and back down, one window per step.
+const REGION_SEQ = ['0-4', '2-6', '5-9', '7-11', '9-13', '12-16', '9-13', '7-11', '5-9', '2-6'];
+/**
+ * The fret window for global bar g when the position moves every `every` bars, starting at `startPos`.
+ * startPos 'all' starts at the bottom of the neck.
+ */
+function regionAt(g, startPos, every) {
+  const start = Math.max(0, REGION_SEQ.indexOf(startPos));
+  return REGION_SEQ[(start + Math.floor(Math.max(0, g) / every)) % REGION_SEQ.length];
+}
+
+export {SONGS, POSITIONS, REGION_SEQ, regionAt};

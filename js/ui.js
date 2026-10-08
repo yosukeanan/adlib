@@ -1,12 +1,13 @@
 // Screen rendering: stage, lead sheet, setup and log views.
 import {NOTE, CHORDS, CLASS_JA, interval, ivLabel, chordName} from './theory.js';
-import {SONGS, POSITIONS} from './songs.js';
+import {SONGS, POSITIONS, regionAt} from './songs.js';
 import {storage, pct, $} from './util.js';
 import {S, update, song, loop, loopActive, barRange, chordAt, chordAfter} from './state.js';
 import {Player} from './player.js';
 import {Stats} from './stats.js';
 import {Mic, judgeOffset} from './mic.js';
 import {Board} from './board.js';
+import {Synth} from './synth.js';
 import {COMP_RHYTHMS} from './band.js';
 import {voicingFor} from './voicing.js';
 
@@ -24,7 +25,9 @@ const SEGS = {
   practice: {key:'practice', opts:() => [['solo','ソロ'],['comp','コンピング']]},
   compRhythm:{key:'compRhythm',opts:() => Object.entries(COMP_RHYTHMS).map(([k, r]) => [k, r.label])},
   compVoicing:{key:'compVoicing',opts:() => [['auto','自動'],['6','6弦ルート'],['5','5弦ルート']]},
-  compGuide:{key:'compGuide', opts:() => [[false,'オフ'],[true,'鳴らす']]}
+  compGuide:{key:'compGuide', opts:() => [[false,'オフ'],[true,'鳴らす']]},
+  posMove:  {key:'posMove',  opts:() => [['off','オフ'],['2','2小節'],['4','4小節'],['8','8小節']]},
+  strSet:   {key:'strSet',   opts:() => [['all','全部'],['1','1弦'],['2','2弦'],['3','3弦'],['12','1・2弦'],['23','2・3弦'],['34','3・4弦']]}
 };
 const Seg = {
   els: name => document.querySelectorAll(`[data-seg="${name}"]`),
@@ -59,8 +62,8 @@ const UI = {
   init() {
     Object.keys(SEGS).forEach(n => Seg.build(n));
     this.renderSongs(); this.renderSongLabel(); this.renderSheet(); this.renderTempo();
-    this.renderSwing(); this.renderMix(); this.renderGate(); this.renderDeps(); this.renderPractice();
-    this.micState(); this.renderLatency(); this.renderMetrics(); this.onPlayState();
+    this.renderSwing(); this.renderVol(); this.renderGate(); this.renderDeps(); this.renderPractice();
+    this.renderPosChips(); this.micState(); this.renderLatency(); this.renderMetrics(); this.onPlayState();
     Board.layout(); this.preview();
     if (!storage.get('jit-intro-done', false)) $('intro').hidden = false;
   },
@@ -73,11 +76,13 @@ const UI = {
     if (has('prog') || has('keyPc')) { this.renderSongLabel(); this.renderSheet(); if (!Player.playing) this.preview(); }
     if (has('bpm')) this.renderTempo();
     if (has('swing')) this.renderSwing();
-    if (has('mix')) this.renderMix();
+    if (has('vol')) this.renderVol();
     if (has('gate')) this.renderGate();
     if (has('rampStep') || has('rot')) this.renderDeps();
     if (has('mode')) { this.renderLegend(); Board.drawNotes(this.view); }
     if (has('practice') || has('compRhythm')) this.renderPractice();
+    else if (has('posMove') || has('strSet')) { Board.drawNotes(this.view); this.renderVoicingTag(); }
+    if (has('practice') || has('strSet')) this.renderPosChips();
     else if (has('compVoicing')) { Board.drawNotes(this.view); this.renderVoicingTag(); }
     if (has('pos') || has('boardSize')) { Board.layout(); Board.drawNotes(this.view); }
     if (has('latency')) this.renderLatency();
@@ -133,11 +138,21 @@ const UI = {
     else if (e.count) { kind = 'count'; text = `カウント ${e.count}`; }
     else if (e.muted) { kind = 'drop'; text = 'バンドが消えました。拍を数え続けて'; }
     else if (e.lastBar && e.pendingKey !== e.keyPc) { kind = 'info'; text = `次のコーラスは Key ${NOTE[e.pendingKey]}${s.minor ? 'm' : ''}`; }
+    else if (this.moveSoon(e)) { kind = 'info'; text = `次は ${POSITIONS[regionAt(e.g + 1, S.pos, +S.posMove)].label} フレットへ`; }
     else if (e.phrase === 'rest') { kind = 'rest'; text = '休み。次のフレーズを準備'; }
     else if (e.phrase === 'play') { kind = 'play'; text = '弾く'; }
     else if (e.hatOnly) { kind = 'info'; text = 'ハイハットだけ。スウィングは自分で出す'; }
     else text = `${e.bar + 1} / ${s.bars.length} 小節`;
     const el = $('status'); el.className = 'status ' + kind; el.textContent = text;
+  },
+
+  /** Position chips do nothing while solo shows limited strings over the whole neck. */
+  renderPosChips() { $('posChips').hidden = S.practice === 'solo' && S.strSet !== 'all'; },
+
+  /** True in the last bar before the fret window moves. */
+  moveSoon(e) {
+    if (S.posMove === 'off' || e.g == null || (S.practice === 'solo' && S.strSet !== 'all')) return false;
+    return regionAt(e.g + 1, S.pos, +S.posMove) !== regionAt(e.g, S.pos, +S.posMove);
   },
 
   /* ----- lead sheet ----- */
@@ -176,7 +191,11 @@ const UI = {
     if (!Player.playing) $('chorusLabel').textContent = S.bpm + ' BPM';
   },
   renderSwing() { $('swRange').value = S.swing; $('swLbl').textContent = S.swing + '%' + (S.swing >= 66 ? '（3連符）' : S.swing <= 52 ? '（イーブン）' : ''); },
-  renderMix() { document.querySelectorAll('[data-part]').forEach(b => b.setAttribute('aria-pressed', String(!!S.mix[b.dataset.part]))); },
+  renderVol() {
+    document.querySelectorAll('[data-vol]').forEach(el => { el.value = S.vol[el.dataset.vol]; });
+    document.querySelectorAll('[data-vol-lbl]').forEach(el => { const v = S.vol[el.dataset.volLbl]; el.textContent = v ? v + '%' : 'オフ'; });
+    Synth.setVolumes(S.vol);
+  },
   renderGate() { $('gateRange').value = S.gate; $('gateLbl').textContent = S.gate; },
   renderDeps() { $('fRampMax').classList.toggle('off', S.rampStep === 0); $('fRotEvery').classList.toggle('off', S.rot === 'off'); },
   renderLegend() { $('legend').innerHTML = LEGENDS[S.practice === 'comp' ? 'comp' : S.mode]; },

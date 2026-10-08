@@ -1,6 +1,6 @@
 // Guitar voicings for comping: shell shapes and voice-led choice along a progression.
 import {CHORDS, TUNING, interval, ivLabel} from './theory.js';
-import {SONGS, POSITIONS} from './songs.js';
+import {SONGS, POSITIONS, regionAt} from './songs.js';
 
 /** Intervals (above the root) of the two upper shell voices: [3rd slot, 7th slot]. */
 function shellTones(q) {
@@ -48,21 +48,26 @@ function shapes(pc, q, rootString = 'auto') {
 
 // Cost of a path: hand movement between consecutive shapes plus distance from the chosen position.
 const W_MOVE = 1, W_STRINGSET = 0.75, W_CENTER = 0.35, W_OUTSIDE = 4;
+// The same chord again must take another shape if one lies within this many frets of the window.
+const REPEAT_REACH = 2;
+const outsideBy = (sh, [a, b]) => Math.max(0, a - sh.lo) + Math.max(0, sh.hi - b);
+const sameShape = (x, y) => x.tpl === y.tpl && x.lo === y.lo;
 function placeCost(sh, [a, b]) {
-  const c = (a + b) / 2, outside = Math.max(0, a - sh.lo) + Math.max(0, sh.hi - b);
-  return W_CENTER * Math.abs(sh.center - c) + W_OUTSIDE * outside;
+  const c = (a + b) / 2;
+  return W_CENTER * Math.abs(sh.center - c) + W_OUTSIDE * outsideBy(sh, [a, b]);
 }
 function moveCost(p, n) {
   return W_MOVE * Math.abs(n.center - p.center) + (p.root !== n.root ? W_STRINGSET : 0);
 }
 
 /**
- * Voice-led choice for a chord sequence (dynamic programming over all shapes,
- * so 'auto' is never worse than a fixed root string under the same cost).
+ * Voice-led choice for a chord sequence (dynamic programming over all shapes).
+ * With vary:false it is pure cost minimisation, so 'auto' is never worse than a fixed root string.
+ * With vary:true (the app's setting) a repeated chord must change shape when another one is within reach.
  * @param chords [{pc, q}]  @param range [loFret, hiFret]
  * @returns {path: shape[], cost}
  */
-function lead(chords, rootString, range) {
+function lead(chords, rootString, range, {vary = true} = {}) {
   if (!chords.length) return {path:[], cost:0};
   const layers = chords.map(c => shapes(c.pc, c.q, rootString));
   let prev = layers[0].map(sh => ({sh, cost:placeCost(sh, range), back:null}));
@@ -70,12 +75,15 @@ function lead(chords, rootString, range) {
   for (let i = 1; i < layers.length; i++) {
     prev = layers[i].map(sh => {
       let best = null;
+      const again = chords[i].pc === chords[i - 1].pc && chords[i].q === chords[i - 1].q;
       for (const p of prev) {
+        // a repeated chord may keep its shape only when no other shape is within reach of the window
+        if (vary && again && sameShape(p.sh, sh) && layers[i].some(o => !sameShape(o, sh) && outsideBy(o, range) <= REPEAT_REACH)) continue;
         const cost = p.cost + moveCost(p.sh, sh) + placeCost(sh, range);
         if (!best || cost < best.cost) best = {sh, cost, back:p};
       }
       return best;
-    });
+    }).filter(Boolean);
     hist.push(prev);
   }
   let end = prev.reduce((a, b) => (b.cost < a.cost ? b : a));
@@ -105,10 +113,15 @@ function planFor(songId, keyPc, rootString, pos) {
   return cache.get(k);
 }
 
-/** The planned shape for a chord from chordAt() ({bar, start, key}). */
-function voicingFor(ch, S) {
-  if (!ch) return null;
-  return planFor(S.prog, ch.key, S.compVoicing, S.pos).get(`${ch.bar}-${ch.start}`) || null;
+/** The fret window a chord is planned in: the chosen position, or the moving one ({g} = global bar). */
+function windowFor(ch, S) {
+  return S.posMove === 'off' ? S.pos : regionAt(ch.g || 0, S.pos, +S.posMove);
 }
 
-export {TEMPLATES, shellTones, shapes, lead, chorusChords, voicingFor};
+/** The planned shape for a chord from chordAt() ({bar, start, key, g?}). */
+function voicingFor(ch, S) {
+  if (!ch) return null;
+  return planFor(S.prog, ch.key, S.compVoicing, windowFor(ch, S)).get(`${ch.bar}-${ch.start}`) || null;
+}
+
+export {TEMPLATES, shellTones, shapes, lead, chorusChords, windowFor, voicingFor};

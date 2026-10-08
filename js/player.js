@@ -13,6 +13,14 @@ function phraseAt(globalBar) {
   return globalBar % (play + rest) < play ? 'play' : 'rest';
 }
 
+/** Tag a chord with the global bar it sounds in (moving positions depend on it). */
+const withBar = (ch, g) => Object.assign(ch, {g});
+/** The chord after `ch`, tagged with its own global bar. */
+function nextWithBar(ch, pendingKey, g) {
+  const nx = chordAfter(ch, pendingKey);
+  return withBar(nx, nx.bar === ch.bar && nx.start > ch.start ? g : g + 1);
+}
+
 const Player = {
   playing:false, timer:0, next:0, bar:0, beat:0, countIn:0, chorus:1, gBar:0,
   pendingKey:0, prevChord:null, guideDone:null,
@@ -58,7 +66,7 @@ const Player = {
     if (d.cool > 0) d.cool--;
     const swung = e => t + (e >> 1) * spb + (e & 1) * spb * S.swing / 100;
     if (S.practice === 'solo') {
-      if (S.mix.comp && !this.fx.muted && !this.fx.hatOnly) {
+      if (S.vol.comp > 0 && !this.fx.muted && !this.fx.hatOnly) {
         for (const e of Band.compHits(song().bars[bar].length > 1))
           Synth.keys(swung(e), Band.voicing(chordAt(bar, e >> 1)), spb * (0.45 + Math.random() * 0.55));
       }
@@ -67,10 +75,10 @@ const Player = {
       const r = COMP_RHYTHMS[S.compRhythm];
       for (const e of r.hits) {
         const ch = r.ant && e === 7
-          ? chordAt(nextBar(bar), 0, isLastBar(bar) ? this.pendingKey : S.keyPc)
-          : chordAt(bar, e >> 1);
+          ? withBar(chordAt(nextBar(bar), 0, isLastBar(bar) ? this.pendingKey : S.keyPc), this.gBar + 1)
+          : withBar(chordAt(bar, e >> 1), this.gBar);
         const v = voicingFor(ch, S);
-        if (v) Synth.keys(swung(e), v.notes.map(n => n.midi), spb * (r.short ? 0.35 : 0.9));
+        if (v) Synth.pluck(swung(e), v.notes.map(n => n.midi), spb * (r.short ? 0.35 : 0.9));
       }
     }
   },
@@ -78,25 +86,25 @@ const Player = {
     const spb = 60 / S.bpm;
     if (this.countIn > 0) {
       const n = 5 - this.countIn; Synth.click(t, n === 1);
-      const ch = chordAt(this.bar, 0);
-      this.queue.push({t, spb, count:n, bar:this.bar, beat:n - 1, chord:ch, next:chordAfter(ch, this.pendingKey), id:'count', bpm:S.bpm, keyPc:S.keyPc});
+      const ch = withBar(chordAt(this.bar, 0), 0);
+      this.queue.push({t, spb, count:n, bar:this.bar, beat:n - 1, chord:ch, next:nextWithBar(ch, this.pendingKey, 0), id:'count', bpm:S.bpm, keyPc:S.keyPc, g:0});
       return;
     }
     const {bar, beat} = this;
     if (beat === 0) this.startBar(t, bar, spb);
-    const ch = chordAt(bar, beat), nx = chordAfter(ch, this.pendingKey);
+    const ch = withBar(chordAt(bar, beat), this.gBar), nx = nextWithBar(ch, this.pendingKey, this.gBar);
     const sig = ch.pc + ch.q, onset = beat === ch.start;
     const changed = onset && sig !== this.prevChord;
     if (onset) this.prevChord = sig;
     const {muted, hatOnly} = this.fx, offbeat = beat % 2 === 1;
     if (!muted) {
-      if (S.mix.drums && !hatOnly) { Synth.ride(t, offbeat); if (offbeat) Synth.ride(t + spb * S.swing / 100, false, true); }
-      if (offbeat && (S.mix.drums || hatOnly)) Synth.hat(t);
-      if (S.mix.bass && !hatOnly) Synth.bass(t, Band.walk(ch, beat, nx), spb * 0.92);
+      if (S.vol.drums > 0 && !hatOnly) { Synth.ride(t, offbeat); if (offbeat) Synth.ride(t + spb * S.swing / 100, false, true); }
+      if (offbeat && (S.vol.drums > 0 || hatOnly)) Synth.hat(t);
+      if (S.vol.bass > 0 && !hatOnly) Synth.bass(t, Band.walk(ch, beat, nx), spb * 0.92);
     }
     this.queue.push({t, spb, count:0, bar, beat, chorus:this.chorus, chord:ch, next:nx, changed,
       id:`${this.chorus}-${bar}-${ch.start}`, muted, hatOnly, phrase:phraseAt(this.gBar),
-      bpm:S.bpm, keyPc:S.keyPc, lastBar:isLastBar(bar), pendingKey:this.pendingKey});
+      bpm:S.bpm, keyPc:S.keyPc, lastBar:isLastBar(bar), pendingKey:this.pendingKey, g:this.gBar});
   },
   advance() {
     this.next += 60 / S.bpm;

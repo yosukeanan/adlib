@@ -10,7 +10,8 @@ import {Synth} from './synth.js';
 import {MicSetup} from './setup.js';
 import * as Voicing from './voicing.js';
 import {COMP_RHYTHMS} from './band.js';
-import {SONGS} from './songs.js';
+import {SONGS, regionAt} from './songs.js';
+import {Board} from './board.js';
 
 const taps = [];
 const ACTIONS = {
@@ -19,7 +20,6 @@ const ACTIONS = {
   song:      b => selectSong(b.dataset.id),
   bar:       b => UI.tapBar(+b.dataset.bar),
   loopClear: () => UI.clearLoop(),
-  mix:       b => update({mix:{...S.mix, [b.dataset.part]: !S.mix[b.dataset.part]}}),
   mic:       () => { if (!Mic.on && !S.micReady) MicSetup.open(true); else Mic.toggle(); },
   calib:     () => Calib.run(),
   latCalib:  () => LatCalib.run(),
@@ -61,6 +61,10 @@ holdToRepeat($('tUp'), 5);
 $('bpmRange').addEventListener('input', e => setBpm(+e.target.value));
 $('swRange').addEventListener('input', e => update({swing:+e.target.value}));
 $('gateRange').addEventListener('input', e => update({gate:+e.target.value}));
+document.addEventListener('input', e => {
+  const k = e.target.dataset && e.target.dataset.vol;
+  if (k) update({vol:{...S.vol, [k]: +e.target.value}});
+});
 
 // Space / page-turner pedals (PageDown, PageUp, arrows) toggle playback.
 document.addEventListener('keydown', e => {
@@ -80,7 +84,7 @@ $('micSetup').addEventListener('close', () => MicSetup.onClosed());
 UI.init();
 
 // Test seam: an automated test can pre-define window.__adlibTest to reach the internals.
-if (window.__adlibTest) Object.assign(window.__adlibTest, {S, update, Player, Mic, Calib, LatCalib, Synth, Stats, UI, MicSetup, Voicing, COMP_RHYTHMS, SONGS});
+if (window.__adlibTest) Object.assign(window.__adlibTest, {S, update, Player, Mic, Calib, LatCalib, Synth, Stats, UI, MicSetup, Voicing, COMP_RHYTHMS, SONGS, regionAt, Board});
 
 // Offline support when served over HTTPS (GitHub Pages). Silently skipped elsewhere.
 if ('serviceWorker' in navigator && (location.protocol === 'https:' || location.hostname === 'localhost')) {
