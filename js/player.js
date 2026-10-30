@@ -1,5 +1,5 @@
 // Look-ahead scheduler that drives the band and the practice load settings.
-import {S, update, song, barRange, isLastBar, nextBar, chordAt, chordAfter} from './state.js';
+import {S, update, beginSession, endSession, song, barRange, isLastBar, nextBar, chordAt, chordAfter} from './state.js';
 import {Synth} from './synth.js';
 import {Band, COMP_RHYTHMS} from './band.js';
 import {voicingFor} from './voicing.js';
@@ -30,6 +30,7 @@ const Player = {
   toggle() { this.playing ? this.stop() : this.start(); },
   start() {
     const ctx = Synth.init(); Synth.resume(); Band.reset();
+    beginSession();
     Object.assign(this, {bar:barRange()[0], beat:0, countIn:4, chorus:1, gBar:0, prevChord:null, guideDone:null,
       drop:{left:0, cool:0}, fx:{muted:false, hatOnly:false}});
     this.queue.length = 0; this.hist.length = 0;
@@ -43,7 +44,7 @@ const Player = {
   },
   stop() {
     this.playing = false; clearInterval(this.timer); this.queue.length = 0;
-    Synth.mute(); Wake.off(); Stats.flush(); UI.onPlayState();
+    Synth.mute(); Wake.off(); Stats.flush(); endSession(); UI.onPlayState();
   },
   pump() {
     const ctx = Synth.ctx;
@@ -117,7 +118,7 @@ const Player = {
   endChorus() {
     this.chorus++;
     const patch = {keyPc:this.pendingKey};
-    if (S.rampStep > 0) patch.bpm = Math.min(S.rampMax, S.bpm + S.rampStep);
+    if (S.rampStep > 0 && S.bpm < S.rampMax) patch.bpm = Math.min(S.rampMax, S.bpm + S.rampStep);
     update(patch);
     this.refreshPendingKey();
   },

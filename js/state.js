@@ -33,16 +33,29 @@ if (!POSITIONS[S.pos]) S.pos = DEFAULTS.pos;
 if (!COMP_RHYTHMS[S.compRhythm]) S.compRhythm = DEFAULTS.compRhythm;
 if (S.compType !== 'drop2' && S.compVoicing === '4') S.compVoicing = 'auto';   // 4〜1弦 exists for drop-2 only
 
+// Tempo and key at the start of playback: ramp and key rotation change them only for the session.
+let sessionBase = null;
+function beginSession() { if (!sessionBase) sessionBase = {bpm: S.bpm, keyPc: S.keyPc}; }
+function endSession() {
+  if (!sessionBase) return;
+  const base = sessionBase; sessionBase = null;
+  update({bpm: base.bpm, keyPc: base.keyPc});
+}
+
 /** Apply a settings patch, persist it and re-render what changed. */
 function update(patch) {
   const changed = new Set();
   for (const k in patch) if (S[k] !== patch[k]) { S[k] = patch[k]; changed.add(k); }
   if (!changed.size) return;
-  storage.set('jit-settings', S);
+  storage.set('jit-settings', sessionBase ? {...S, bpm: sessionBase.bpm, keyPc: sessionBase.keyPc} : S);
   if (changed.has('keyPc') || changed.has('rot') || changed.has('rotEvery')) Player.refreshPendingKey();
   UI.render(changed);
 }
-const setBpm = v => update({bpm: clamp(Math.round(v), 40, 300)});
+function setBpm(v) {
+  const bpm = clamp(Math.round(v), 40, 300);
+  if (sessionBase) sessionBase.bpm = bpm;   // a tempo the user sets while playing is kept
+  update({bpm});
+}
 
 /* =========================================================
    4. Song position helpers
@@ -73,8 +86,10 @@ function chordAfter(ch, keyAfterWrap = S.keyPc) {
 function selectSong(id) {
   if (id === S.prog) return;
   Object.assign(loop, {a:null, b:null});
-  update({prog:id, keyPc: SONGS.find(s => s.id === id).keyPc});
+  const keyPc = SONGS.find(s => s.id === id).keyPc;
+  if (sessionBase) sessionBase.keyPc = keyPc;   // a new song is the user's choice: keep its key after stopping
+  update({prog:id, keyPc});
   if (Player.playing) { Player.bar = barRange()[0]; Player.prevChord = null; }
 }
 
-export {DEFAULTS, S, update, setBpm, song, loop, loopActive, barRange, isLastBar, nextBar, chordAt, chordAfter, selectSong};
+export {DEFAULTS, S, update, setBpm, beginSession, endSession, song, loop, loopActive, barRange, isLastBar, nextBar, chordAt, chordAfter, selectSong};
