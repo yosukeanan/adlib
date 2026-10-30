@@ -116,7 +116,7 @@
   <!-- ===== setup ===== -->
   <section id="view-setup" role="tabpanel" hidden>
     <section class="card group">
-      <h2>曲</h2>
+      <div class="sheet-h"><h2>曲</h2><button type="button" class="btn ghost" data-action="songNew">＋ マイ進行を作る</button></div>
       <p>進行ごとに鍛えられるポイントが違います。</p>
       <div class="songs" id="songList"></div>
     </section>
@@ -247,6 +247,29 @@
   <div class="ms-foot">
     <button type="button" class="btn ghost" data-action="msBack" id="msBack">戻る</button>
     <button type="button" class="btn" data-action="msNext" id="msNext">次へ</button>
+  </div>
+</dialog>
+
+<dialog id="songEditor" class="sheet-dlg" aria-labelledby="seTitle">
+  <div class="ms-head">
+    <h2 id="seTitle">マイ進行を作る</h2>
+    <button type="button" class="ms-x" data-action="seCancel" aria-label="閉じる">×</button>
+  </div>
+  <div class="field">
+    <label class="lab" for="seName"><span>名前</span></label>
+    <input type="text" id="seName" class="se-input" maxlength="40" autocomplete="off">
+  </div>
+  <div class="field">
+    <label class="lab" for="seChart"><span>進行</span></label>
+    <textarea id="seChart" class="se-input se-chart" rows="4" spellcheck="false" autocapitalize="off" autocomplete="off"></textarea>
+    <div class="hint">1小節にコードを1〜2個（4個まで）、小節の区切りは | 。例：Dm7 | G7 | Cmaj7 | Cmaj7</div>
+    <div class="hint">使えるコード：maj7（メジャー7th）、6（シックス）、m7（マイナー7th）、m6（マイナー6th）、7（ドミナント7th）、7alt（オルタード）、m7b5（m7♭5・ハーフディミニッシュ）、dim7（ディミニッシュ）。♭は b、♯は # で書きます（例：Bb7、F#m7b5）。</div>
+  </div>
+  <p class="err" id="seErr" role="alert" hidden></p>
+  <div class="ms-foot">
+    <button type="button" class="btn danger" data-action="seDelete" id="seDelete" hidden>削除</button>
+    <button type="button" class="btn ghost se-cancel" data-action="seCancel">キャンセル</button>
+    <button type="button" class="btn" data-action="seSave" id="seSave">保存</button>
   </div>
 </dialog>
 

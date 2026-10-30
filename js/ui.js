@@ -1,7 +1,7 @@
 // Screen rendering: stage, lead sheet, setup and log views.
 import {NOTE, CHORDS, CLASS_JA, interval, ivLabel, chordName} from './theory.js';
-import {SONGS, POSITIONS, regionAt} from './songs.js';
-import {storage, pct, $} from './util.js';
+import {SONGS, POSITIONS, regionAt, isCustomSong} from './songs.js';
+import {storage, pct, $, esc} from './util.js';
 import {S, update, song, loop, loopActive, barRange, chordAt, chordAfter} from './state.js';
 import {Player} from './player.js';
 import {Stats} from './stats.js';
@@ -197,8 +197,13 @@ const UI = {
 
   /* ----- setup ----- */
   renderSongs() {
-    $('songList').innerHTML = SONGS.map(s =>
-      `<button type="button" class="song" data-action="song" data-id="${s.id}" aria-pressed="${s.id === S.prog}"><b>${s.name}</b><span class="lvl">${s.lvl}</span><small>${s.desc}</small></button>`).join('');
+    $('songList').innerHTML = SONGS.map(s => {
+      const btn = `<button type="button" class="song" data-action="song" data-id="${s.id}" aria-pressed="${s.id === S.prog}"><b>${esc(s.name)}</b><span class="lvl">${s.lvl}</span><small>${esc(s.desc)}</small></button>`;
+      // my progressions get an edit button beside them (a button cannot sit inside another)
+      return isCustomSong(s.id)
+        ? `<div class="song-row">${btn}<button type="button" class="btn ghost" data-action="songEdit" data-id="${s.id}" aria-label="${esc(s.name)}を編集">編集</button></div>`
+        : btn;
+    }).join('');
   },
   renderTempo() {
     $('bpmVal').textContent = S.bpm; $('bpmRange').value = S.bpm; $('bpmLbl').textContent = S.bpm + ' BPM';
