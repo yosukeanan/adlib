@@ -164,7 +164,8 @@ const UI = {
 
   /** True in the last bar before the fret window moves. */
   moveSoon(e) {
-    if (S.posMove === 'off' || e.g == null || (S.practice === 'solo' && S.strSet !== 'all')) return false;
+    if (S.posMove === 'off' || e.g == null || (S.practice === 'solo' && S.strSet !== 'all')
+      || (S.practice === 'comp' && S.compLine !== 'off')) return false;
     return regionAt(e.g + 1, S.pos, +S.posMove) !== regionAt(e.g, S.pos, +S.posMove);
   },
 
