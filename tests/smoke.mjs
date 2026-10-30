@@ -499,6 +499,37 @@ const main = async () => {
       await page.close();
     }
 
+    // --- tempo ramp and key rotation stay in the session ---
+    {
+      const {page, errors} = await newPage(browser, 390, 844);
+      await page.goto(base);
+
+      const ramp = await page.evaluate(() => {
+        const {S, update, Player} = window.__adlibTest, saved = () => JSON.parse(localStorage.getItem('jit-settings')).bpm;
+        update({bpm:100, rampStep:10, rampMax:200});
+        Player.start(); Player.endChorus();
+        const during = {bpm: S.bpm, saved: saved()};
+        Player.stop();
+        return {during, after: {bpm: S.bpm, saved: saved()}};
+      });
+      check('tempo ramp is not saved while playing', ramp.during.bpm === 110 && ramp.during.saved === 100, JSON.stringify(ramp.during));
+      check('stopping returns to the starting tempo', ramp.after.bpm === 100 && ramp.after.saved === 100, JSON.stringify(ramp.after));
+
+      const fast = await page.evaluate(() => {
+        const {S, update, Player} = window.__adlibTest;
+        update({bpm:250, rampStep:10, rampMax:200});
+        Player.start(); Player.endChorus();
+        const bpm = S.bpm;
+        Player.stop();
+        update({bpm:120, rampStep:0, rampMax:240});
+        return bpm;
+      });
+      check('tempo ramp never slows a tempo above its maximum', fast === 250, `${fast} BPM`);
+
+      check('no page errors (session tempo / key)', !errors.length, errors.join(' | '));
+      await page.close();
+    }
+
     // --- settings saved by an older version (on/off mixer) ---
     {
       const page = await browser.newPage({viewport:{width:390, height:844}});
