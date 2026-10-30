@@ -213,6 +213,13 @@ input[type=range]{width:100%;accent-color:var(--accent);height:28px;margin:0}
 .song small{grid-column:1/-1;font-size:12px;color:var(--muted)}
 .song .lvl{font-size:11px;color:var(--muted);border:1px solid var(--line);border-radius:999px;padding:0 8px;align-self:center}
 .song[aria-pressed="true"]{border:2px solid var(--accent);padding:8px 11px;background:color-mix(in srgb,var(--accent) 8%,transparent)}
+.song-row{display:grid;grid-template-columns:1fr auto;gap:6px;align-items:stretch}
+.song-row>.btn{min-height:44px}
+
+/* ---------- my progressions editor ---------- */
+.se-input{display:block;width:100%;border:1px solid var(--line);border-radius:10px;background:transparent;color:var(--ink);padding:8px 10px;font:inherit;font-size:16px}
+.se-chart{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;line-height:1.5;resize:vertical}
+.ms-foot .se-cancel{margin-left:auto}
 .keygrid{display:grid;grid-template-columns:repeat(6,1fr);gap:5px}
 .keygrid button{border:1px solid var(--line);background:transparent;border-radius:9px;padding:8px 0;font-family:'Kalam',cursive;font-size:16px}
 .keygrid button[aria-pressed="true"]{background:var(--ink);color:var(--bg);border-color:var(--ink);font-weight:700}

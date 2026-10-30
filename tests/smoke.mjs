@@ -565,6 +565,79 @@ const main = async () => {
       await page.close();
     }
 
+    // --- my progressions: create, keep after reload, reject a bad chart, delete ---
+    {
+      const {page, errors} = await newPage(browser, 390, 844);
+      await page.goto(base);
+      const editorOpen = () => page.evaluate(() => document.getElementById('songEditor').open);
+      const saved = () => page.evaluate(() => JSON.parse(localStorage.getItem('jit-custom-songs') || '[]'));
+
+      await page.click('[data-tab="setup"]');
+      await page.click('[data-action="songNew"]');
+      check('"＋ マイ進行を作る" opens the editor', await editorOpen());
+      await page.fill('#seName', 'テスト進行');
+      await page.fill('#seChart', 'Dm7 | G7 | Cmaj7 | Cmaj7');
+      await page.click('#seSave');
+      await wait(100);   // the dialog's close event is async
+      const made = await page.evaluate(() => {
+        const {SONGS, S} = window.__adlibTest, s = SONGS.find(x => x.name === 'テスト進行');
+        const btn = s && document.querySelector(`#songList [data-action="song"][data-id="${s.id}"]`);
+        return {open: document.getElementById('songEditor').open, id: s && s.id, bars: s && s.bars.length, lvl: s && s.lvl,
+          inList: !!btn, pressed: btn && btn.getAttribute('aria-pressed'), prog: S.prog};
+      });
+      check('saving closes the editor, adds the song to SONGS and the list, and selects it',
+        !made.open && !!made.id && made.bars === 4 && made.lvl === 'マイ進行' && made.inList && made.pressed === 'true' && made.prog === made.id, JSON.stringify(made));
+
+      await page.click('#songList [data-action="song"][data-id="251m"]');
+      await page.click(`#songList [data-action="song"][data-id="${made.id}"]`);
+      check('the saved song can be selected from the list', await page.evaluate(id => window.__adlibTest.S.prog === id, made.id));
+
+      await page.click('[data-tab="play"]');
+      await page.click('#playBtn');
+      await page.waitForFunction(() => /コーラス目/.test(document.getElementById('chorusLabel').textContent), null, {timeout:5000});
+      const playing = await page.evaluate(() => ({chord: document.getElementById('curChord').textContent, label: document.getElementById('songLabel').textContent}));
+      await page.click('#playBtn');
+      check('playing the saved song shows its chords', ['Dm7', 'G7', 'Cmaj7'].includes(playing.chord) && /テスト進行/.test(playing.label), JSON.stringify(playing));
+
+      await page.reload();
+      const after = await page.evaluate(id => ({inSongs: window.__adlibTest.SONGS.some(s => s.id === id),
+        inList: !!document.querySelector(`#songList [data-action="song"][data-id="${id}"]`), prog: window.__adlibTest.S.prog}), made.id);
+      check('the saved song is still there after a reload', after.inSongs && after.inList && after.prog === made.id, JSON.stringify(after));
+
+      await page.click('[data-tab="setup"]');
+      await page.click('[data-action="songNew"]');
+      await page.fill('#seName', 'だめな進行');
+      await page.fill('#seChart', 'Dm7 | X9');
+      await page.click('#seSave');
+      await wait(100);
+      const bad = await page.evaluate(() => ({err: document.getElementById('seErr').textContent, shown: !document.getElementById('seErr').hidden,
+        inSongs: window.__adlibTest.SONGS.some(s => s.name === 'だめな進行')}));
+      const badSaved = await saved();
+      check('a bad chart shows the reason and is not saved', await editorOpen() && bad.shown && /2小節目/.test(bad.err) && /X9/.test(bad.err)
+        && !bad.inSongs && badSaved.length === 1, JSON.stringify({...bad, saved: badSaved.length}));
+      await page.click('#songEditor [data-action="seCancel"].se-cancel');
+      await wait(100);
+      check('cancel closes the editor', !(await editorOpen()));
+
+      await page.click(`#songList [data-action="songEdit"][data-id="${made.id}"]`);
+      const filled = await page.evaluate(() => ({name: document.getElementById('seName').value, chart: document.getElementById('seChart').value}));
+      check('edit opens the editor with the saved name and chart', await editorOpen() && filled.name === 'テスト進行' && filled.chart === 'Dm7 | G7 | Cmaj7 | Cmaj7', JSON.stringify(filled));
+      page.once('dialog', d => d.accept());
+      await page.click('#seDelete');
+      await wait(100);
+      const gone = await page.evaluate(id => {
+        const {SONGS, S} = window.__adlibTest;
+        return {inList: !!document.querySelector(`#songList [data-id="${id}"]`), inSongs: SONGS.some(s => s.id === id), prog: S.prog,
+          first: SONGS[0].id, open: document.getElementById('songEditor').open};
+      }, made.id);
+      const goneSaved = await saved();
+      check('deleting from the editor removes the song and selects the first built-in song',
+        !gone.inList && !gone.inSongs && !gone.open && gone.prog === gone.first && !goneSaved.length, JSON.stringify({...gone, saved: goneSaved.length}));
+
+      check('no page errors (my progressions)', !errors.length, errors.join(' | '));
+      await page.close();
+    }
+
     // --- settings saved by an older version (on/off mixer) ---
     {
       const page = await browser.newPage({viewport:{width:390, height:844}});
