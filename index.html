@@ -111,6 +111,16 @@
       <p class="hint" id="spkHint" hidden>スピーカーで伴奏を流しています。伴奏の音を拾うと誤判定になるため、できればイヤホンを使ってください。</p>
     </section>
 
+    <section class="card rec-card" id="recCard">
+      <button class="btn ghost rec-btn" id="recBtn" data-action="rec" aria-pressed="false"><i class="rec-dot" aria-hidden="true"></i><span id="recLbl">録音</span></button>
+      <div class="rec-take" id="recTake" hidden>
+        <audio id="recAudio" controls preload="metadata"></audio>
+        <a class="btn ghost" id="recSave" download>ファイルに保存</a>
+      </div>
+      <p class="err" id="recErr" hidden></p>
+      <p class="hint">マイクの音も入れたいときは、先にマイクをオンにしてから録音してください。録音はこのページを閉じると消えます。</p>
+    </section>
+
   </section>
 
   <!-- ===== setup ===== -->

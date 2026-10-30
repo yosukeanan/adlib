@@ -8,6 +8,7 @@ import {Seg, UI} from './ui.js';
 import {Wake} from './frame.js';
 import {Synth} from './synth.js';
 import {MicSetup} from './setup.js';
+import {Recorder} from './recorder.js';
 import * as Voicing from './voicing.js';
 import {COMP_RHYTHMS} from './band.js';
 import {SONGS, regionAt} from './songs.js';
@@ -28,6 +29,7 @@ const ACTIONS = {
   msNext:    () => MicSetup.next(),
   msBack:    () => MicSetup.back(),
   msClose:   () => MicSetup.close(),
+  rec:       () => Recorder.toggle(),
   introMore: () => $('intro').classList.add('open'),
   advice:    b => applyPreset(UI.advice[+b.dataset.i].apply),
   intro:     () => { $('intro').hidden = true; storage.set('jit-intro-done', true); },
@@ -82,9 +84,10 @@ document.addEventListener('visibilitychange', () => {
 $('micSetup').addEventListener('close', () => MicSetup.onClosed());
 
 UI.init();
+Recorder.init();
 
 // Test seam: an automated test can pre-define window.__adlibTest to reach the internals.
-if (window.__adlibTest) Object.assign(window.__adlibTest, {S, update, Player, Mic, Calib, LatCalib, Synth, Stats, UI, MicSetup, Voicing, COMP_RHYTHMS, SONGS, regionAt, Board});
+if (window.__adlibTest) Object.assign(window.__adlibTest, {S, update, Player, Mic, Calib, LatCalib, Synth, Stats, UI, MicSetup, Recorder, Voicing, COMP_RHYTHMS, SONGS, regionAt, Board});
 
 // Offline support when served over HTTPS (GitHub Pages). Silently skipped elsewhere.
 if ('serviceWorker' in navigator && (location.protocol === 'https:' || location.hostname === 'localhost')) {
@@ -97,7 +100,7 @@ if ('serviceWorker' in navigator && (location.protocol === 'https:' || location.
   // A new version took over: reload once to run it, but never in the middle of playing or measuring.
   let reloading = false;
   const reloadWhenIdle = () => {
-    if (Player.playing || $('micSetup').open) { setTimeout(reloadWhenIdle, 1000); return; }
+    if (Player.playing || Recorder.recording || $('micSetup').open) { setTimeout(reloadWhenIdle, 1000); return; }
     location.reload();
   };
   sw.addEventListener('controllerchange', () => {
