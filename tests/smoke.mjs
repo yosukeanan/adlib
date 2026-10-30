@@ -495,6 +495,21 @@ const main = async () => {
       check('position chips hidden during a top-note line', !(await page.isVisible('#posChips')));
       await page.evaluate(() => window.__adlibTest.update({compLine:'off', compType:'shell', practice:'solo'}));
 
+      // no "next: frets …" notice while the top-note line holds the position
+      const ms = await page.evaluate(() => {
+        const {UI, S, update, regionAt} = window.__adlibTest;
+        update({practice:'comp', posMove:'2', compLine:'off'});
+        let g = 0;
+        while (g < 40 && regionAt(g + 1, S.pos, +S.posMove) === regionAt(g, S.pos, +S.posMove)) g++;
+        const e = {pc:0, q:'maj7', beats:4, start:0, bar:0, key:0, g};
+        const off = UI.moveSoon(e);
+        update({compLine:'up'});
+        const up = UI.moveSoon(e);
+        update({compLine:'off', posMove:'off', practice:'solo'});
+        return {g, off, up};
+      });
+      check('comping announces the move without a line, not with one', ms.g < 40 && ms.off === true && ms.up === false, JSON.stringify(ms));
+
       check('no page errors (drop-2 / line)', !errors.length, errors.join(' | '));
       await page.close();
     }
