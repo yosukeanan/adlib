@@ -154,6 +154,17 @@ input[type=range]{width:100%;accent-color:var(--accent);height:28px;margin:0}
 .tuner-btn{margin-top:8px}
 .err{color:var(--avoid);font-size:12.5px;margin:8px 0 0}
 
+/* ---------- practice: recording ---------- */
+.rec-btn{display:inline-flex;align-items:center;gap:7px;min-height:44px}
+.rec-dot{display:none;width:10px;height:10px;border-radius:50%;background:var(--avoid)}
+.rec-btn.on{border-color:var(--avoid);color:var(--avoid);font-weight:700;font-variant-numeric:tabular-nums}
+.rec-btn.on .rec-dot{display:block;animation:rec 1s steps(2,start) infinite}
+@keyframes rec{to{opacity:.25}}
+.rec-take{display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin-top:10px}
+.rec-take audio{flex:1 1 220px;min-width:0;height:40px}
+.rec-take .btn{display:inline-flex;align-items:center;min-height:40px;text-decoration:none}
+.rec-card .hint{margin:8px 0 0}
+
 /* ---------- practice: lead sheet ---------- */
 .sheet-h{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:6px}
 .sheet{display:grid;grid-template-columns:repeat(4,1fr);border-left:2px solid var(--ink)}
@@ -294,4 +305,5 @@ input[type=range]{width:100%;accent-color:var(--accent);height:28px;margin:0}
 @media (prefers-reduced-motion: reduce){
   #board .d-det{animation:none;opacity:.85}
   .nextbox{transition:none}
+  .rec-btn.on .rec-dot{animation:none}
 }

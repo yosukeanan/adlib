@@ -11,6 +11,7 @@ const ASSETS = [
   './js/main.js',
   './js/mic.js',
   './js/player.js',
+  './js/recorder.js',
   './js/setup.js',
   './js/songs.js',
   './js/state.js',

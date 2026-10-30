@@ -638,6 +638,28 @@ const main = async () => {
       await page.close();
     }
 
+    // --- recording a take on the device ---
+    {
+      const {page, errors} = await newPage(browser, 390, 844);
+      await page.goto(base);
+
+      await page.click('#recBtn');
+      const on = await page.evaluate(() => ({rec: window.__adlibTest.Recorder.recording, lbl: document.getElementById('recLbl').textContent}));
+      check('record button starts a take and turns into "停止"', on.rec && /^停止 \d+:\d\d$/.test(on.lbl), JSON.stringify(on));
+      await page.click('#playBtn');
+      await wait(1500);
+      await page.click('#recBtn');
+      await page.waitForFunction(() => !!window.__adlibTest.Recorder.blob, null, {timeout:5000});
+      await page.click('#playBtn');
+      const take = await page.evaluate(() => ({src: document.getElementById('recAudio').src, size: window.__adlibTest.Recorder.blob.size,
+        shown: !document.getElementById('recTake').hidden, href: document.getElementById('recSave').href, name: document.getElementById('recSave').download}));
+      check('the take plays back from a blob: URL and is not empty', take.src.startsWith('blob:') && take.size > 0 && take.shown, `${take.size} bytes`);
+      check('the save link offers adlib-date-time with an extension', take.href === take.src && /^adlib-\d{8}-\d{6}\.(m4a|webm|ogg)$/.test(take.name), take.name);
+
+      check('no page errors (recording)', !errors.length, errors.join(' | '));
+      await page.close();
+    }
+
     // --- settings saved by an older version (on/off mixer) ---
     {
       const page = await browser.newPage({viewport:{width:390, height:844}});
