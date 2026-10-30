@@ -144,6 +144,14 @@ input[type=range]{width:100%;accent-color:var(--accent);height:28px;margin:0}
 .histdots{grid-column:1/-1;display:flex;flex-wrap:wrap;gap:3px;margin-top:6px;min-height:8px}
 .histdots i{width:8px;height:8px;border-radius:50%;background:var(--other)}
 .histdots i.chord{background:var(--ct)} .histdots i.tension{background:var(--ten)} .histdots i.avoid{background:var(--avoid)}
+.tuner{display:grid;grid-template-columns:auto 1fr;align-items:center;gap:8px 12px}
+.tuner .det-note{grid-row:span 2}
+.tuner-bar{position:relative;height:12px;border-radius:6px;background:var(--surface2)}
+.tuner-bar span{position:absolute;left:50%;top:-3px;bottom:-3px;width:2px;margin-left:-1px;background:var(--muted)}
+.tuner-bar i{position:absolute;left:50%;top:-5px;bottom:-5px;width:4px;margin-left:-2px;border-radius:2px;background:var(--avoid);transition:left .08s linear}
+.tuner-bar i.ok{background:var(--ct)}
+.tuner-info{display:flex;justify-content:space-between;gap:8px}
+.tuner-btn{margin-top:8px}
 .err{color:var(--avoid);font-size:12.5px;margin:8px 0 0}
 
 /* ---------- practice: recording ---------- */
@@ -216,6 +224,13 @@ input[type=range]{width:100%;accent-color:var(--accent);height:28px;margin:0}
 .song small{grid-column:1/-1;font-size:12px;color:var(--muted)}
 .song .lvl{font-size:11px;color:var(--muted);border:1px solid var(--line);border-radius:999px;padding:0 8px;align-self:center}
 .song[aria-pressed="true"]{border:2px solid var(--accent);padding:8px 11px;background:color-mix(in srgb,var(--accent) 8%,transparent)}
+.song-row{display:grid;grid-template-columns:1fr auto;gap:6px;align-items:stretch}
+.song-row>.btn{min-height:44px}
+
+/* ---------- my progressions editor ---------- */
+.se-input{display:block;width:100%;border:1px solid var(--line);border-radius:10px;background:transparent;color:var(--ink);padding:8px 10px;font:inherit;font-size:16px}
+.se-chart{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;line-height:1.5;resize:vertical}
+.ms-foot .se-cancel{margin-left:auto}
 .keygrid{display:grid;grid-template-columns:repeat(6,1fr);gap:5px}
 .keygrid button{border:1px solid var(--line);background:transparent;border-radius:9px;padding:8px 0;font-family:'Kalam',cursive;font-size:16px}
 .keygrid button[aria-pressed="true"]{background:var(--ink);color:var(--bg);border-color:var(--ink);font-weight:700}

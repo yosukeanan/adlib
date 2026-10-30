@@ -1,7 +1,7 @@
 // Screen rendering: stage, lead sheet, setup and log views.
 import {NOTE, CHORDS, CLASS_JA, interval, ivLabel, chordName} from './theory.js';
-import {SONGS, POSITIONS, regionAt} from './songs.js';
-import {storage, pct, $} from './util.js';
+import {SONGS, POSITIONS, regionAt, isCustomSong} from './songs.js';
+import {storage, pct, $, esc} from './util.js';
 import {S, update, song, loop, loopActive, barRange, chordAt, chordAfter} from './state.js';
 import {Player} from './player.js';
 import {Stats} from './stats.js';
@@ -197,8 +197,13 @@ const UI = {
 
   /* ----- setup ----- */
   renderSongs() {
-    $('songList').innerHTML = SONGS.map(s =>
-      `<button type="button" class="song" data-action="song" data-id="${s.id}" aria-pressed="${s.id === S.prog}"><b>${s.name}</b><span class="lvl">${s.lvl}</span><small>${s.desc}</small></button>`).join('');
+    $('songList').innerHTML = SONGS.map(s => {
+      const btn = `<button type="button" class="song" data-action="song" data-id="${s.id}" aria-pressed="${s.id === S.prog}"><b>${esc(s.name)}</b><span class="lvl">${s.lvl}</span><small>${esc(s.desc)}</small></button>`;
+      // my progressions get an edit button beside them (a button cannot sit inside another)
+      return isCustomSong(s.id)
+        ? `<div class="song-row">${btn}<button type="button" class="btn ghost" data-action="songEdit" data-id="${s.id}" aria-label="${esc(s.name)}を編集">編集</button></div>`
+        : btn;
+    }).join('');
   },
   renderTempo() {
     $('bpmVal').textContent = S.bpm; $('bpmRange').value = S.bpm; $('bpmLbl').textContent = S.bpm + ' BPM';
@@ -258,8 +263,20 @@ const UI = {
 
   /* ----- mic ----- */
   micState() {
-    $('micOff').hidden = Mic.on; $('micOn').hidden = !Mic.on; if (!Mic.on) $('stageDet').hidden = true;
+    const tuner = Mic.on && Mic.tuner;
+    $('micOff').hidden = Mic.on; $('micOn').hidden = !Mic.on || tuner; $('tuner').hidden = !tuner;
+    if (!Mic.on || tuner) $('stageDet').hidden = true;
+    const tb = $('tunerBtn'); tb.setAttribute('aria-pressed', String(tuner)); tb.textContent = tuner ? 'チューナーを閉じる' : 'チューナー';
     $('spkHint').hidden = !(Mic.on && S.audioOut === 'speaker');
+  },
+  /** Tuner readout: {name, cents, string} from tuneInfo, or null when no pitch (needle back to center). */
+  tuner(info) {
+    const c = info ? info.cents : 0, ok = !!info && Math.abs(c) <= 6;
+    $('tunerNote').textContent = info ? info.name : '—';
+    const nd = $('tunerNeedle'); nd.style.left = (50 + c) + '%'; nd.classList.toggle('ok', ok);
+    $('tunerText').textContent = !info ? '弾いてください'
+      : `${c > 0 ? '+' + c : String(c)} セント（${ok ? '合っています' : c > 0 ? '高い' : '低い'}）`;
+    $('tunerString').textContent = info && info.string ? `${info.string.no}弦 ${info.string.name}` : '';
   },
   micError(msg) { const el = $('micErr'); el.textContent = msg; el.hidden = !msg; },
   meter(rms, gate) {

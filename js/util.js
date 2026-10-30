@@ -6,5 +6,7 @@ const storage = {
 const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
 const pct = x => Math.round(x * 100) + '%';
 const $ = id => document.getElementById(id);
+const ESC = {'&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;'};
+const esc = s => String(s).replace(/[&<>"']/g, c => ESC[c]);
 
-export {storage, clamp, pct, $};
+export {storage, clamp, pct, $, esc};

@@ -3,12 +3,13 @@ import {S, update, setBpm, selectSong} from './state.js';
 import {$, storage} from './util.js';
 import {Player} from './player.js';
 import {Stats, applyPreset} from './stats.js';
-import {Mic, Calib, LatCalib} from './mic.js';
+import {Mic, Calib, LatCalib, tuneInfo} from './mic.js';
 import {Seg, UI} from './ui.js';
 import {Wake} from './frame.js';
 import {Synth} from './synth.js';
 import {MicSetup} from './setup.js';
 import {Recorder} from './recorder.js';
+import {SongEditor} from './editor.js';
 import * as Voicing from './voicing.js';
 import {COMP_RHYTHMS} from './band.js';
 import {SONGS, regionAt} from './songs.js';
@@ -23,6 +24,7 @@ const ACTIONS = {
   loopClear: () => UI.clearLoop(),
   mic:       () => { if (!Mic.on && !S.micReady) MicSetup.open(true); else Mic.toggle(); },
   calib:     () => Calib.run(),
+  tuner:     () => Mic.toggleTuner(),
   latCalib:  () => LatCalib.run(),
   micSetup:  () => MicSetup.open(false),
   msOut:     b => MicSetup.pickOut(b.dataset.out),
@@ -30,6 +32,11 @@ const ACTIONS = {
   msBack:    () => MicSetup.back(),
   msClose:   () => MicSetup.close(),
   rec:       () => Recorder.toggle(),
+  songNew:   () => SongEditor.open(),
+  songEdit:  b => SongEditor.open(b.dataset.id),
+  seSave:    () => SongEditor.save(),
+  seCancel:  () => SongEditor.close(),
+  seDelete:  () => SongEditor.remove(),
   introMore: () => $('intro').classList.add('open'),
   advice:    b => applyPreset(UI.advice[+b.dataset.i].apply),
   intro:     () => { $('intro').hidden = true; storage.set('jit-intro-done', true); },
@@ -70,7 +77,7 @@ document.addEventListener('input', e => {
 
 // Space / page-turner pedals (PageDown, PageUp, arrows) toggle playback.
 document.addEventListener('keydown', e => {
-  if ($('micSetup').open) return;
+  if ($('micSetup').open || $('songEditor').open) return;
   if (e.target.closest && e.target.closest('input,select,textarea')) return;
   const onButton = e.target.closest && e.target.closest('button');
   const pedal = ['PageDown', 'PageUp', 'ArrowRight', 'ArrowLeft'].includes(e.key);
@@ -87,7 +94,7 @@ UI.init();
 Recorder.init();
 
 // Test seam: an automated test can pre-define window.__adlibTest to reach the internals.
-if (window.__adlibTest) Object.assign(window.__adlibTest, {S, update, Player, Mic, Calib, LatCalib, Synth, Stats, UI, MicSetup, Recorder, Voicing, COMP_RHYTHMS, SONGS, regionAt, Board});
+if (window.__adlibTest) Object.assign(window.__adlibTest, {S, update, Player, Mic, Calib, LatCalib, tuneInfo, Synth, Stats, UI, MicSetup, SongEditor, Recorder, Voicing, COMP_RHYTHMS, SONGS, regionAt, Board});
 
 // Offline support when served over HTTPS (GitHub Pages). Silently skipped elsewhere.
 if ('serviceWorker' in navigator && (location.protocol === 'https:' || location.hostname === 'localhost')) {
@@ -100,7 +107,7 @@ if ('serviceWorker' in navigator && (location.protocol === 'https:' || location.
   // A new version took over: reload once to run it, but never in the middle of playing or measuring.
   let reloading = false;
   const reloadWhenIdle = () => {
-    if (Player.playing || Recorder.recording || $('micSetup').open) { setTimeout(reloadWhenIdle, 1000); return; }
+    if (Player.playing || Recorder.recording || $('micSetup').open || $('songEditor').open) { setTimeout(reloadWhenIdle, 1000); return; }
     location.reload();
   };
   sw.addEventListener('controllerchange', () => {
