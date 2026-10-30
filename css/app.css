@@ -144,6 +144,14 @@ input[type=range]{width:100%;accent-color:var(--accent);height:28px;margin:0}
 .histdots{grid-column:1/-1;display:flex;flex-wrap:wrap;gap:3px;margin-top:6px;min-height:8px}
 .histdots i{width:8px;height:8px;border-radius:50%;background:var(--other)}
 .histdots i.chord{background:var(--ct)} .histdots i.tension{background:var(--ten)} .histdots i.avoid{background:var(--avoid)}
+.tuner{display:grid;grid-template-columns:auto 1fr;align-items:center;gap:8px 12px}
+.tuner .det-note{grid-row:span 2}
+.tuner-bar{position:relative;height:12px;border-radius:6px;background:var(--surface2)}
+.tuner-bar span{position:absolute;left:50%;top:-3px;bottom:-3px;width:2px;margin-left:-1px;background:var(--muted)}
+.tuner-bar i{position:absolute;left:50%;top:-5px;bottom:-5px;width:4px;margin-left:-2px;border-radius:2px;background:var(--avoid);transition:left .08s linear}
+.tuner-bar i.ok{background:var(--ct)}
+.tuner-info{display:flex;justify-content:space-between;gap:8px}
+.tuner-btn{margin-top:8px}
 .err{color:var(--avoid);font-size:12.5px;margin:8px 0 0}
 
 /* ---------- practice: lead sheet ---------- */

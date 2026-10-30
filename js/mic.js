@@ -1,5 +1,5 @@
 // Microphone: pitch detection (YIN), note onsets and judging against the chord.
-import {CHORDS, interval, classify} from './theory.js';
+import {NOTE, TUNING, STRING_NAMES, CHORDS, interval, classify} from './theory.js';
 import {clamp} from './util.js';
 import {S, update} from './state.js';
 import {Synth, setAudioSession} from './synth.js';
@@ -12,7 +12,7 @@ import {Loop} from './frame.js';
 const Mic = {
   on:false, stream:null, src:null, an:null,
   raw:new Float32Array(2048), x:new Float32Array(1024), d:new Float32Array(700),
-  cand:null, candN:0, last:null, lastAt:0, silent:0, low:1,
+  cand:null, candN:0, last:null, lastAt:0, silent:0, low:1, tuner:false,
   gate() { return 0.002 + (61 - S.gate) * 0.0009; },          // sensitivity 1..60 → RMS threshold
   async start() {
     if (this.on) return true;
@@ -37,13 +37,20 @@ const Mic = {
   },
   stop() {
     if (!this.on) return;
-    this.on = false;
+    this.on = false; this.tuner = false;
     try { this.stream.getTracks().forEach(t => t.stop()); this.src.disconnect(); } catch (e) {}
     setAudioSession('playback'); UI.micState();
     if (Calib.active) { Calib.active = false; UI.calibMsg('マイクがオフになったため中断しました。'); }
     if (LatCalib.active) { LatCalib.active = false; UI.latState({running:false, msg:'マイクがオフになったため中断しました。'}); }
   },
   toggle() { this.on ? this.stop() : this.start(); },
+  /** Tuner on/off. It replaces judging while on, so playback stops (as in Calib). */
+  async toggleTuner() {
+    if (this.tuner) { this.tuner = false; UI.micState(); return; }
+    if (!(await this.start())) return;
+    if (Player.playing) Player.stop();
+    this.tuner = true; UI.micState(); UI.tuner(null);
+  },
   /** YIN on a 2x-downsampled frame. Returns {rms, f} (f = -1 when no pitch). */
   detect() {
     this.an.getFloatTimeDomainData(this.raw);
@@ -73,6 +80,7 @@ const Mic = {
     UI.meter(r.rms, this.gate());
     if (Calib.active) { Calib.sample(r.rms); return; }
     if (LatCalib.active) LatCalib.poll();
+    if (this.tuner && !LatCalib.active) { UI.tuner(tuneInfo(r.f)); return; }   // f = -1 (no pitch) gives null; calibration keeps the notes it needs
     this.low = Math.min(this.low, r.rms);
     if (r.f < 0) { if (++this.silent >= 3) this.last = null; this.cand = null; this.candN = 0; return; }
     this.silent = 0;
@@ -161,6 +169,16 @@ const LatCalib = {
   }
 };
 
+/** Pure: nearest note, cents off it and the nearest open string (null beyond 3 semitones). Null for no pitch. */
+function tuneInfo(f) {
+  if (!(f > 0) || !Number.isFinite(f)) return null;
+  const mf = 69 + 12 * Math.log2(f / 440), midi = Math.round(mf), cents = Math.round((mf - midi) * 100);
+  let s = 0;
+  TUNING.forEach((m, i) => { if (Math.abs(midi - m) < Math.abs(midi - TUNING[s])) s = i; });
+  const string = Math.abs(midi - TUNING[s]) > 3 ? null : {no: 6 - s, name: STRING_NAMES[s]};
+  return {midi, cents, name: NOTE[(midi % 12 + 12) % 12] + (Math.floor(midi / 12) - 1), string};
+}
+
 /** Seconds between a note's sounding beat (scheduled time) and its detection. */
 const judgeOffset = () => S.latency != null ? S.latency : 0.07 + Synth.latency();   // fallback: detection lag + output latency
 
@@ -183,4 +201,4 @@ function onNote(midi) {
   Board.flash(midi);
 }
 
-export {Mic, Calib, LatCalib, judgeOffset, onNote};
+export {Mic, Calib, LatCalib, judgeOffset, onNote, tuneInfo};

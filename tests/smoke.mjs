@@ -204,6 +204,26 @@ const main = async () => {
       check('notes played during playback are recorded', n >= 2, `${n} notes`);
       await page.click('#playBtn');
 
+      // tuner: nearest note, cents and string
+      const tu = await page.evaluate(() => {
+        const {tuneInfo} = window.__adlibTest;
+        return {a4: tuneInfo(440), a445: tuneInfo(445), e2: tuneInfo(82.41), none: [tuneInfo(0), tuneInfo(-1), tuneInfo(NaN), tuneInfo(Infinity)]};
+      });
+      check('tuneInfo(440) is A4 at 0 cents', tu.a4.name === 'A4' && tu.a4.cents === 0 && tu.a4.midi === 69, JSON.stringify(tu.a4));
+      check('tuneInfo(445) is A about +20 cents', /^A\d$/.test(tu.a445.name) && Math.abs(tu.a445.cents - 20) <= 2, JSON.stringify(tu.a445));
+      check('tuneInfo(82.41) is E2 on the 6th string', tu.e2.name === 'E2' && tu.e2.string && tu.e2.string.no === 6, JSON.stringify(tu.e2));
+      check('tuneInfo gives null without a pitch', tu.none.every(x => x === null), JSON.stringify(tu.none));
+
+      // tuner button swaps the judging display for the tuner and back
+      await page.click('#tunerBtn');
+      await page.waitForFunction(() => window.__adlibTest.Mic.tuner, null, {timeout:3000}).catch(() => {});
+      const t1 = await page.evaluate(() => ({flag: window.__adlibTest.Mic.tuner, tuner: !document.getElementById('tuner').hidden, judge: !document.getElementById('micOn').hidden}));
+      check('tuner button shows the tuner and sets Mic.tuner', t1.flag && t1.tuner && !t1.judge, JSON.stringify(t1));
+      await page.click('#tunerBtn');
+      await page.waitForFunction(() => !window.__adlibTest.Mic.tuner, null, {timeout:3000}).catch(() => {});
+      const t2 = await page.evaluate(() => ({flag: window.__adlibTest.Mic.tuner, tuner: !document.getElementById('tuner').hidden, judge: !document.getElementById('micOn').hidden}));
+      check('pressing it again returns to judging', !t2.flag && !t2.tuner && t2.judge, JSON.stringify(t2));
+
       check('no page errors (mic)', !errors.length, errors.join(' | '));
       await page.close();
     }

@@ -258,8 +258,20 @@ const UI = {
 
   /* ----- mic ----- */
   micState() {
-    $('micOff').hidden = Mic.on; $('micOn').hidden = !Mic.on; if (!Mic.on) $('stageDet').hidden = true;
+    const tuner = Mic.on && Mic.tuner;
+    $('micOff').hidden = Mic.on; $('micOn').hidden = !Mic.on || tuner; $('tuner').hidden = !tuner;
+    if (!Mic.on || tuner) $('stageDet').hidden = true;
+    const tb = $('tunerBtn'); tb.setAttribute('aria-pressed', String(tuner)); tb.textContent = tuner ? 'チューナーを閉じる' : 'チューナー';
     $('spkHint').hidden = !(Mic.on && S.audioOut === 'speaker');
+  },
+  /** Tuner readout: {name, cents, string} from tuneInfo, or null when no pitch (needle back to center). */
+  tuner(info) {
+    const c = info ? info.cents : 0, ok = !!info && Math.abs(c) <= 6;
+    $('tunerNote').textContent = info ? info.name : '—';
+    const nd = $('tunerNeedle'); nd.style.left = (50 + c) + '%'; nd.classList.toggle('ok', ok);
+    $('tunerText').textContent = !info ? '弾いてください'
+      : `${c > 0 ? '+' + c : String(c)} セント（${ok ? '合っています' : c > 0 ? '高い' : '低い'}）`;
+    $('tunerString').textContent = info && info.string ? `${info.string.no}弦 ${info.string.name}` : '';
   },
   micError(msg) { const el = $('micErr'); el.textContent = msg; el.hidden = !msg; },
   meter(rms, gate) {

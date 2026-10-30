@@ -3,7 +3,7 @@ import {S, update, setBpm, selectSong} from './state.js';
 import {$, storage} from './util.js';
 import {Player} from './player.js';
 import {Stats, applyPreset} from './stats.js';
-import {Mic, Calib, LatCalib} from './mic.js';
+import {Mic, Calib, LatCalib, tuneInfo} from './mic.js';
 import {Seg, UI} from './ui.js';
 import {Wake} from './frame.js';
 import {Synth} from './synth.js';
@@ -22,6 +22,7 @@ const ACTIONS = {
   loopClear: () => UI.clearLoop(),
   mic:       () => { if (!Mic.on && !S.micReady) MicSetup.open(true); else Mic.toggle(); },
   calib:     () => Calib.run(),
+  tuner:     () => Mic.toggleTuner(),
   latCalib:  () => LatCalib.run(),
   micSetup:  () => MicSetup.open(false),
   msOut:     b => MicSetup.pickOut(b.dataset.out),
@@ -84,7 +85,7 @@ $('micSetup').addEventListener('close', () => MicSetup.onClosed());
 UI.init();
 
 // Test seam: an automated test can pre-define window.__adlibTest to reach the internals.
-if (window.__adlibTest) Object.assign(window.__adlibTest, {S, update, Player, Mic, Calib, LatCalib, Synth, Stats, UI, MicSetup, Voicing, COMP_RHYTHMS, SONGS, regionAt, Board});
+if (window.__adlibTest) Object.assign(window.__adlibTest, {S, update, Player, Mic, Calib, LatCalib, tuneInfo, Synth, Stats, UI, MicSetup, Voicing, COMP_RHYTHMS, SONGS, regionAt, Board});
 
 // Offline support when served over HTTPS (GitHub Pages). Silently skipped elsewhere.
 if ('serviceWorker' in navigator && (location.protocol === 'https:' || location.hostname === 'localhost')) {
