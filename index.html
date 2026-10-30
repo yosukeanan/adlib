@@ -107,6 +107,12 @@
         <div class="metrics" id="liveMetrics"></div>
         <div class="histdots" id="histDots" aria-hidden="true"></div>
       </div>
+      <div class="tuner" id="tuner" hidden>
+        <div id="tunerNote" class="det-note">—</div>
+        <div class="tuner-bar" aria-hidden="true"><span></span><i id="tunerNeedle"></i></div>
+        <div class="tuner-info"><span id="tunerText" class="det-text" aria-live="polite">弾いてください</span><span id="tunerString" class="det-text"></span></div>
+      </div>
+      <button class="btn ghost tuner-btn" id="tunerBtn" data-action="tuner" aria-pressed="false">チューナー</button>
       <p class="err" id="micErr" hidden></p>
       <p class="hint" id="spkHint" hidden>スピーカーで伴奏を流しています。伴奏の音を拾うと誤判定になるため、できればイヤホンを使ってください。</p>
     </section>
