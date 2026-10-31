@@ -10,7 +10,46 @@ const SONGS = [
   {id:'blues',  name:'ジャズ・ブルース',              key:'F',  minor:false, lvl:'定番',  desc:'セッションの定番。ドミナントの連続を歌う',         chart:'F7 | Bb7 | F7 | Cm7 F7 | Bb7 | Bdim7 | F7 | Am7b5 D7alt | Gm7 | C7 | F7 D7 | Gm7 C7'},
   {id:'mblues', name:'マイナー・ブルース',            key:'C',  minor:true,  lvl:'定番',  desc:'♭Ⅵ7→Ⅴ7の緊張感を弾き分ける',                    chart:'Cm7 | Fm7 | Cm7 | Cm7 | Fm7 | Fm7 | Cm7 | Cm7 | Ab7 | G7alt | Cm7 | G7alt'},
   {id:'mcycle', name:'マイナー・ダイアトニック循環',   key:'G',  minor:true,  lvl:'定番',  desc:'平行調のメジャーとマイナーを行き来する',           chart:'Cm7 | F7 | Bbmaj7 | Ebmaj7 | Am7b5 | D7alt | Gm6 | Gm6'},
-  {id:'rhythm', name:'リズム・チェンジ（A）',          key:'Bb', minor:false, lvl:'上級',  desc:'速いチェンジの総合練習',                          chart:'Bb6 G7 | Cm7 F7 | Dm7 G7 | Cm7 F7 | Fm7 Bb7 | Ebmaj7 Edim7 | Dm7 G7 | Cm7 F7'}
+  {id:'rhythm', name:'リズム・チェンジ（A）',          key:'Bb', minor:false, lvl:'上級',  desc:'速いチェンジの総合練習',                          chart:'Bb6 G7 | Cm7 F7 | Dm7 G7 | Cm7 F7 | Fm7 Bb7 | Ebmaj7 Edim7 | Dm7 G7 | Cm7 F7'},
+  // Standards: 8 bars per line of the chart.
+  {id:'flyme',  name:'Fly Me to the Moon',              key:'C',  minor:false, lvl:'定番',  desc:'4度進行の連続を、ガイドトーンでなめらかにつなぐ',  chart:
+    'Am7 | Dm7 | G7 | Cmaj7 C7 | Fmaj7 | Bm7b5 | E7 | Am7 A7 | ' +
+    'Dm7 | G7 | Cmaj7 | A7 | Dm7 | G7 | Cmaj7 | Bm7b5 E7 | ' +
+    'Am7 | Dm7 | G7 | Cmaj7 C7 | Fmaj7 | Bm7b5 | E7 | Am7 A7 | ' +
+    'Dm7 | G7 | Em7b5 | A7 | Dm7 | G7 | C6 | Bm7b5 E7'},
+  {id:'bossa',  name:'Blue Bossa',                      key:'C',  minor:true,  lvl:'定番',  desc:'マイナーのⅡ-Ⅴと、♭Ⅱメジャーへの一時転調を弾き分ける', chart:
+    'Cm7 | Cm7 | Fm7 | Fm7 | Dm7b5 | G7alt | Cm7 | Cm7 | ' +
+    'Ebm7 | Ab7 | Dbmaj7 | Dbmaj7 | Dm7b5 | G7alt | Cm7 | Dm7b5 G7alt'},
+  {id:'satin',  name:'Satin Doll',                      key:'C',  minor:false, lvl:'定番',  desc:'全音・半音でずれていくⅡ-Ⅴを追いかける',          chart:
+    'Dm7 G7 | Dm7 G7 | Em7 A7 | Em7 A7 | Am7 D7 | Abm7 Db7 | Cmaj7 | Cmaj7 | ' +
+    'Dm7 G7 | Dm7 G7 | Em7 A7 | Em7 A7 | Am7 D7 | Abm7 Db7 | Cmaj7 | Cmaj7 | ' +
+    'Gm7 C7 | Gm7 C7 | Fmaj7 | Fmaj7 | Am7 D7 | Am7 D7 | Dm7 | G7 | ' +
+    'Dm7 G7 | Dm7 G7 | Em7 A7 | Em7 A7 | Am7 D7 | Abm7 Db7 | Cmaj7 | Cmaj7'},
+  {id:'atrain', name:'Take the A Train',                key:'C',  minor:false, lvl:'定番',  desc:'2小節続くⅡ7と、サブドミナントへ移るサビを弾き分ける', chart:
+    'C6 | C6 | D7 | D7 | Dm7 | G7 | C6 | Dm7 G7 | ' +
+    'C6 | C6 | D7 | D7 | Dm7 | G7 | C6 | C6 | ' +
+    'Fmaj7 | Fmaj7 | Fmaj7 | Fmaj7 | D7 | D7 | Dm7 | G7 | ' +
+    'C6 | C6 | D7 | D7 | Dm7 | G7 | C6 | Dm7 G7'},
+  {id:'misty',  name:'Misty',                           key:'Eb', minor:false, lvl:'定番',  desc:'バラードのテンポで、Ⅳへ向かうⅡ-Ⅴと♭Ⅶ7を歌う',    chart:
+    'Ebmaj7 | Bbm7 Eb7 | Abmaj7 | Abm7 Db7 | Ebmaj7 Cm7 | Fm7 Bb7 | Gm7 C7 | Fm7 Bb7 | ' +
+    'Ebmaj7 | Bbm7 Eb7 | Abmaj7 | Abm7 Db7 | Ebmaj7 Cm7 | Fm7 Bb7 | Eb6 | Eb6 | ' +
+    'Bbm7 | Eb7 | Abmaj7 | Abmaj7 | Am7 | D7 | Gm7 C7 | Fm7 Bb7 | ' +
+    'Ebmaj7 | Bbm7 Eb7 | Abmaj7 | Abm7 Db7 | Ebmaj7 Cm7 | Fm7 Bb7 | Eb6 | Fm7 Bb7'},
+  {id:'stella', name:'Stella by Starlight',             key:'Bb', minor:false, lvl:'上級',  desc:'m7♭5から始まり転調を重ねる進行で、行き先を先読みする', chart:
+    'Em7b5 | A7alt | Cm7 | F7 | Fm7 | Bb7 | Ebmaj7 | Ab7 | ' +
+    'Bbmaj7 | Em7b5 A7alt | Dm7 | Bbm7 Eb7 | Fmaj7 | Em7b5 A7alt | Am7b5 | D7alt | ' +
+    'G7alt | G7alt | Cm7 | Cm7 | Ab7 | Ab7 | Bbmaj7 | Bbmaj7 | ' +
+    'Em7b5 | A7alt | Dm7b5 | G7alt | Cm7b5 | F7alt | Bbmaj7 | Bbmaj7'},
+  {id:'another', name:'There Will Never Be Another You', key:'Eb', minor:false, lvl:'定番', desc:'ⅥmへのマイナーⅡ-Ⅴと、Ⅳ→♭Ⅶ7の流れを弾き分ける',   chart:
+    'Ebmaj7 | Ebmaj7 | Dm7b5 | G7alt | Cm7 | Cm7 | Bbm7 | Eb7 | ' +
+    'Abmaj7 | Db7 | Ebmaj7 | Cm7 | F7 | F7 | Fm7 | Bb7 | ' +
+    'Ebmaj7 | Ebmaj7 | Dm7b5 | G7alt | Cm7 | Cm7 | Bbm7 | Eb7 | ' +
+    'Abmaj7 | Db7 | Ebmaj7 | Am7b5 D7 | Gm7 C7 | Fm7 Bb7 | Eb6 | Fm7 Bb7'},
+  {id:'dolphin', name:'On Green Dolphin Street',        key:'C',  minor:false, lvl:'上級',  desc:'半音で動く長いコードと、4ビートのⅡ-Ⅴを切り替える', chart:
+    'Cmaj7 | Cmaj7 | Cm7 | Cm7 | D7 | D7 | Dbmaj7 | Dbmaj7 | ' +
+    'Dm7 | G7 | Cmaj7 | Cmaj7 | Fm7 | Bb7 | Ebmaj7 | Dm7b5 G7alt | ' +
+    'Cmaj7 | Cmaj7 | Cm7 | Cm7 | D7 | D7 | Dbmaj7 | Dbmaj7 | ' +
+    'Dm7 | G7 | Em7b5 | A7alt | Dm7 | G7 | Cmaj7 | Dm7 G7'}
 ];
 function parseChart(str) {
   return str.split('|').map(bar => {

@@ -126,6 +126,31 @@ const main = async () => {
       await page.close();
     }
 
+    // --- built-in standards: every chart parses to its bar count and shows in the song list ---
+    {
+      const {page, errors} = await newPage(browser, 390, 844);
+      await page.goto(base);
+      const STANDARDS = {flyme:32, bossa:16, satin:32, atrain:32, misty:32, stella:32, another:32, dolphin:32};
+      const parsed = await page.evaluate(want => {
+        const {SONGS} = window.__adlibTest, Q = ['maj7', '6', 'm7', 'm6', '7', '7alt', 'm7b5', 'dim7'];
+        return Object.entries(want).map(([id, n]) => {
+          const s = SONGS.find(x => x.id === id);
+          if (!s) return `${id}: missing`;
+          if (s.bars.length !== n) return `${id}: ${s.bars.length} bars`;
+          const bad = s.bars.findIndex(bar => Math.abs(bar.reduce((a, c) => a + c.beats, 0) - 4) > 1e-9 || bar.some(c => !Q.includes(c.q) || !(c.pc >= 0)));
+          return bad >= 0 ? `${id}: bar ${bad + 1}` : '';
+        }).filter(Boolean);
+      }, STANDARDS);
+      check('the 8 standards parse to their bar counts', !parsed.length, parsed.join('; ') || Object.entries(STANDARDS).map(([k, n]) => `${k}:${n}`).join(' '));
+
+      await page.click('[data-tab="setup"]');
+      const shown = [];
+      for (const id of Object.keys(STANDARDS)) if (await page.isVisible(`#songList [data-action="song"][data-id="${id}"]`)) shown.push(id);
+      check('the 8 standards are shown in the song list', shown.length === 8, `${shown.length} shown`);
+      check('no page errors (standards)', !errors.length, errors.join(' | '));
+      await page.close();
+    }
+
     // --- landscape: compact intro, header hidden while playing ---
     {
       const {page, errors} = await newPage(browser, 844, 390, {introDone:false});
@@ -466,7 +491,8 @@ const main = async () => {
 
       const lines = await page.evaluate(() => {
         const {Voicing, SONGS} = window.__adlibTest, bad = [], rise = {};
-        let maxMove = 0;
+        const STD = new Set(['flyme', 'bossa', 'satin', 'atrain', 'misty', 'stella', 'another', 'dolphin']);
+        let maxMove = 0, maxStd = 0;
         for (const song of SONGS) {
           const ch = Voicing.chorusChords(song, song.keyPc);
           const o = {type:'drop2', vary:false};
@@ -476,16 +502,17 @@ const main = async () => {
             const {path} = Voicing.lead(ch, 'auto', [0, 15], {type:'drop2', line}), tops = path.map(Voicing.topOf);
             const d = (tops[tops.length - 1] - tops[0]) * (line === 'up' ? 1 : -1);
             rise[`${song.id}-${line}`] = d;
-            path.slice(1).forEach((p, i) => { maxMove = Math.max(maxMove, Math.abs(p.center - path[i].center)); });
+            path.slice(1).forEach((p, i) => { const mv = Math.abs(p.center - path[i].center); if (STD.has(song.id)) maxStd = Math.max(maxStd, mv); else maxMove = Math.max(maxMove, mv); });
           }
         }
-        return {bad, rise, maxMove};
+        return {bad, rise, maxMove, maxStd};
       });
       check('drop-2 voice leading: "auto" never costs more than one string set', !lines.bad.length, lines.bad.slice(0, 3).join('; '));
       const flat = Object.entries(lines.rise).filter(([, d]) => d < 5);
       check('top-note line moves the top voice 5+ semitones in its direction', !flat.length,
         flat.length ? flat.map(([k, d]) => `${k}:${d}`).join(' ') : `min ${Math.min(...Object.values(lines.rise))} semitones`);
       check('top-note line keeps hand moves small (≤ 4 frets per change)', lines.maxMove <= 4, `max ${lines.maxMove}`);
+      check('top-note line keeps hand moves small for standards (≤ 5 frets per change)', lines.maxStd <= 5, `max ${lines.maxStd}`);
 
       const modal = await page.evaluate(() => {
         const {Voicing, SONGS} = window.__adlibTest, song = SONGS.find(s => s.id === 'modal');
