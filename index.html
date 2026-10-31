@@ -201,6 +201,17 @@
     </section>
 
     <section class="card group">
+      <h2>データの書き出し・読み込み</h2>
+      <p>設定・マイ進行・練習記録を1つのファイルに書き出します。読み込むと、今の内容は上書きされます。</p>
+      <div class="data-btns">
+        <button type="button" class="btn ghost" data-action="dataExport">書き出す</button>
+        <button type="button" class="btn ghost" data-action="dataImport">読み込む</button>
+      </div>
+      <input type="file" id="bkFile" accept=".json,application/json" hidden>
+      <p class="err" id="bkErr" role="alert" hidden></p>
+    </section>
+
+    <section class="card group">
       <h2>ヒント</h2>
       <ul class="tips">
         <li>スペースキーで再生・停止。PageDownや→キーを送るBluetoothペダルでも操作できる見込みです（機種によります）。</li>
