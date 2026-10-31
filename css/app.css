@@ -224,6 +224,7 @@ input[type=range]::-moz-range-thumb{width:18px;height:18px;border-radius:50%;bac
 .intro li{margin-bottom:4px}
 .intro-short{display:none;margin:4px 0 var(--sp-2);font-size:13.5px}
 .intro-btns{display:flex;gap:var(--sp-2)}
+.data-btns{display:flex;gap:var(--sp-2);margin-top:var(--sp-2)}
 .intro-more{display:none}
 
 /* ---------- dialogs: bottom sheets ---------- */

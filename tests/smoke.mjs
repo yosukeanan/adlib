@@ -638,6 +638,137 @@ const main = async () => {
       await page.close();
     }
 
+    // --- backup: export and import (acceptance examples 1–6) ---
+    {
+      const KEYS = ['jit-settings', 'jit-stats', 'jit-custom-songs'];
+      const stored = p => p.evaluate(keys => Object.fromEntries(keys.map(k => [k, localStorage.getItem(k)])), KEYS);
+      const norm = s => s == null ? null : JSON.stringify(JSON.parse(s));
+      const sameData = (o, st) => norm(st['jit-settings']) === JSON.stringify(o.settings) && norm(st['jit-stats']) === JSON.stringify(o.stats)
+        && norm(st['jit-custom-songs']) === JSON.stringify(o.customSongs);
+      const exportFile = async p => {
+        await p.click('[data-tab="setup"]');
+        const [dl] = await Promise.all([p.waitForEvent('download'), p.click('[data-action="dataExport"]')]);
+        return {name: dl.suggestedFilename(), text: fs.readFileSync(await dl.path(), 'utf8')};
+      };
+      const importFile = async (p, text) => {
+        await p.click('[data-tab="setup"]');
+        const [fc] = await Promise.all([p.waitForEvent('filechooser'), p.click('[data-action="dataImport"]')]);
+        await fc.setFiles({name:'backup.json', mimeType:'application/json', buffer: Buffer.from(text)});
+      };
+      // confirm() answers: the test sets `answer` before each import and counts the dialogs it saw
+      const watchDialogs = p => {
+        const w = {answer:'dismiss', seen:[]};
+        p.on('dialog', d => { w.seen.push(d.type()); w.answer === 'accept' ? d.accept() : d.dismiss(); });
+        return w;
+      };
+      const untilDialog = async (w, n) => { for (let i = 0; i < 40 && w.seen.length < n; i++) await wait(50); };
+      const JA = /[぀-ヿ一-鿿]/;
+
+      // 例1: settings, a progression and stats are saved → export gives JSON with all three, version 1 and the time
+      const {page, errors} = await newPage(browser, 390, 844);
+      const dlg = watchDialogs(page);
+      await page.goto(base);
+      await page.click('[data-tab="setup"]');
+      await page.click('[data-action="songNew"]');
+      await page.fill('#seName', '書き出し進行');
+      await page.fill('#seChart', 'Em7 | A7 | Dmaj7 | Dmaj7');
+      await page.click('#seSave');
+      await wait(100);
+      await page.evaluate(() => {
+        const {update, Stats} = window.__adlibTest;
+        update({bpm:137, keyPc:5});
+        for (let i = 0; i < 3; i++) Stats.record({q:'m7', cls:'chord', strong:true, guideTry:false, guideHit:false, rest:false, keyPc:5});
+        Stats.flush();
+      });
+      const before = await stored(page);
+      check('例1 前提: settings, my progressions and stats are saved', KEYS.every(k => before[k] != null), JSON.stringify(Object.keys(before).filter(k => before[k] == null)));
+      const t0 = Date.now();
+      const file = await exportFile(page);
+      const t1 = Date.now();
+      let o = null;
+      try { o = JSON.parse(file.text); } catch (e) {}
+      const at = o && Date.parse(o.exportedAt);
+      check('例1 export downloads a JSON file', !!o && /^adlib-backup-\d{8}-\d{6}\.json$/.test(file.name), file.name);
+      check('例1 the file has version 1 and the export time', !!o && o.version === 1 && at >= t0 - 1000 && at <= t1 + 1000, o && JSON.stringify({version:o.version, exportedAt:o.exportedAt}));
+      check('例1 the file holds settings, my progressions and stats as saved', !!o && sameData(o, before)
+        && o.settings.bpm === 137 && o.customSongs.length === 1 && o.customSongs[0].name === '書き出し進行' && o.stats.total === 3,
+        o && JSON.stringify({bpm:o.settings.bpm, songs:o.customSongs.length, total:o.stats.total}));
+
+      await page.evaluate(() => { window.__noReload = true; });
+      const unchanged = async () => {
+        const st = await stored(page), live = await page.evaluate(() => !!window.__noReload);
+        return KEYS.every(k => st[k] === before[k]) && live;
+      };
+
+      // 例3: a broken JSON file → Japanese error, nothing changes
+      await importFile(page, '{"format":"adlib-backup","version":1,');
+      await page.waitForSelector('#bkErr:not([hidden])', {timeout:3000}).catch(() => {});
+      const e3 = await page.evaluate(() => ({shown: !document.getElementById('bkErr').hidden, msg: document.getElementById('bkErr').textContent}));
+      check('例3 a broken file shows a Japanese error message', e3.shown && JA.test(e3.msg), e3.msg);
+      check('例3 a broken file changes nothing (no confirm, no reload)', await unchanged() && !dlg.seen.length);
+
+      // 例4: JSON that is not an adlib file → error, nothing changes
+      await importFile(page, JSON.stringify({app:'other', settings:{bpm:90}, items:[1, 2, 3]}));
+      await page.waitForSelector('#bkErr:not([hidden])', {timeout:3000}).catch(() => {});
+      const e4 = await page.evaluate(() => ({shown: !document.getElementById('bkErr').hidden, msg: document.getElementById('bkErr').textContent}));
+      check('例4 a non-adlib JSON file shows an error', e4.shown && !!e4.msg, e4.msg);
+      check('例4 a non-adlib JSON file changes nothing (no confirm, no reload)', await unchanged() && !dlg.seen.length);
+
+      // 例5: a valid file asks before overwriting; cancelling changes nothing
+      const other = {...o, settings:{...o.settings, bpm:90}, customSongs:[]};
+      dlg.answer = 'dismiss';
+      await importFile(page, JSON.stringify(other));
+      await untilDialog(dlg, 1);
+      await wait(300);
+      const e5 = await page.evaluate(() => !document.getElementById('bkErr').hidden);
+      check('例5 importing asks for confirmation first', dlg.seen.length === 1 && dlg.seen[0] === 'confirm', JSON.stringify(dlg.seen));
+      check('例5 cancelling the confirmation changes nothing', await unchanged() && !e5
+        && await page.evaluate(() => window.__adlibTest.S.bpm === 137 && window.__adlibTest.SONGS.some(s => s.name === '書き出し進行')));
+      check('no page errors (backup: export / rejected imports)', !errors.length, errors.join(' | '));
+      await page.close();
+
+      // 例2: a fresh device reads the 例1 file → everything comes back, on screen too
+      {
+        const {page, errors} = await newPage(browser, 390, 844);
+        const dlg = watchDialogs(page);
+        await page.goto(base);
+        const fresh = await stored(page);
+        check('例2 前提: starts with no saved data', KEYS.every(k => fresh[k] == null), JSON.stringify(fresh));
+        dlg.answer = 'accept';
+        const loaded = page.waitForEvent('load');
+        await importFile(page, file.text);
+        await loaded;
+        await page.waitForFunction(() => document.getElementById('curChord').textContent !== '—');
+        const id = o.customSongs[0].id;
+        check('例2 the three saved items match the file', sameData(o, await stored(page)) && dlg.seen[0] === 'confirm', JSON.stringify(dlg.seen));
+        const r = await page.evaluate(id => {
+          const {S, SONGS, Stats} = window.__adlibTest, btn = document.querySelector(`#songList [data-action="song"][data-id="${id}"]`);
+          return {bpm: S.bpm, keyPc: S.keyPc, prog: S.prog, inSongs: SONGS.some(s => s.id === id), total: Stats.all.total,
+            bpmVal: document.getElementById('bpmVal').textContent, inList: !!btn, pressed: btn && btn.getAttribute('aria-pressed')};
+        }, id);
+        check('例2 settings, my progression and stats are restored', r.bpm === 137 && r.keyPc === 5 && r.prog === id && r.inSongs && r.total === 3, JSON.stringify(r));
+        check('例2 the screen shows the restored tempo and progression', r.bpmVal === '137' && r.inList && r.pressed === 'true', JSON.stringify(r));
+        await page.click('[data-tab="log"]');
+        const log = await page.evaluate(() => ({advice: document.getElementById('advice').textContent, rows: document.querySelectorAll('#report tbody tr').length}));
+        check('例2 the log tab shows the restored stats', /判定データは 3 音/.test(log.advice) && log.rows === 1, JSON.stringify(log));
+        check('no page errors (backup: import)', !errors.length, errors.join(' | '));
+        await page.close();
+      }
+
+      // 例6: no progressions → export works and writes an empty list
+      {
+        const {page, errors} = await newPage(browser, 390, 844);
+        await page.goto(base);
+        let f6 = null, o6 = null;
+        try { f6 = await exportFile(page); o6 = JSON.parse(f6.text); } catch (e) { errors.push(String(e)); }
+        const shown = await page.evaluate(() => !document.getElementById('bkErr').hidden);
+        check('例6 export with no progressions writes an empty list', !!o6 && Array.isArray(o6.customSongs) && o6.customSongs.length === 0 && o6.version === 1,
+          o6 ? JSON.stringify(o6.customSongs) : 'no file');
+        check('例6 export with no progressions shows no error', !shown && !errors.length, errors.join(' | '));
+        await page.close();
+      }
+    }
+
     // --- recording a take on the device ---
     {
       const {page, errors} = await newPage(browser, 390, 844);

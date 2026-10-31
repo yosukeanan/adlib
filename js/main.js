@@ -14,6 +14,7 @@ import * as Voicing from './voicing.js';
 import {COMP_RHYTHMS} from './band.js';
 import {SONGS, regionAt} from './songs.js';
 import {Board} from './board.js';
+import {Backup} from './backup.js';
 
 const taps = [];
 const ACTIONS = {
@@ -37,6 +38,8 @@ const ACTIONS = {
   seSave:    () => SongEditor.save(),
   seCancel:  () => SongEditor.close(),
   seDelete:  () => SongEditor.remove(),
+  dataExport: () => Backup.export(),
+  dataImport: () => Backup.pick(),
   introMore: () => $('intro').classList.add('open'),
   advice:    b => applyPreset(UI.advice[+b.dataset.i].apply),
   intro:     () => { $('intro').hidden = true; storage.set('jit-intro-done', true); },
@@ -89,12 +92,13 @@ document.addEventListener('visibilitychange', () => {
 });
 
 $('micSetup').addEventListener('close', () => MicSetup.onClosed());
+$('bkFile').addEventListener('change', e => Backup.load(e.target));
 
 UI.init();
 Recorder.init();
 
 // Test seam: an automated test can pre-define window.__adlibTest to reach the internals.
-if (window.__adlibTest) Object.assign(window.__adlibTest, {S, update, Player, Mic, Calib, LatCalib, tuneInfo, Synth, Stats, UI, MicSetup, SongEditor, Recorder, Voicing, COMP_RHYTHMS, SONGS, regionAt, Board});
+if (window.__adlibTest) Object.assign(window.__adlibTest, {S, update, Player, Mic, Calib, LatCalib, tuneInfo, Synth, Stats, UI, MicSetup, SongEditor, Recorder, Voicing, COMP_RHYTHMS, SONGS, regionAt, Board, Backup});
 
 // Offline support when served over HTTPS (GitHub Pages). Silently skipped elsewhere.
 if ('serviceWorker' in navigator && (location.protocol === 'https:' || location.hostname === 'localhost')) {
